@@ -1,0 +1,17 @@
+{
+  "name": "youneedtowork",
+  "module": "index.ts",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@types/jsdom": "^21.1.7",
+    "@types/leaflet": "^1.9.14",
+    "jsdom": "^25.0.1",
+    "puppeteer": "^23.6.1"
+  }
+}
