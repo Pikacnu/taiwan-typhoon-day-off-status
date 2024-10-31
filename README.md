@@ -16,4 +16,4 @@ Taiwan GeoJson is from web
 Dayoff Info is from https://www.dgpa.gov.tw/typh/daily/nds.html
 (Data can't handle by this project fully)
 
-Website : https://typhooniscomingbut.younnedto.work
+Website : https://typhooniscomingbut.youneedto.work
