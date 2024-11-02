@@ -1,4 +1,4 @@
-# Tawiwan Typhoon Dayoff Status Website
+# Taiwan Typhoon Dayoff Status Website
 
 To install dependencies:
 
