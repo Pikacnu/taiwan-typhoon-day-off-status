@@ -106,7 +106,7 @@
                 className: 'marker',
                 iconSize: [10, 10],
                 iconAnchor: [10, 10],
-                popupAnchor: [10, -10]
+                popupAnchor: [-5, -10]
               })
             }).addTo(PointLayer).bindPopup('你的位置').openPopup()
           })
@@ -118,7 +118,8 @@
               html: `<div style="width:100%;height:100%;background-color:${ColorMap.get(place.type)};border-radius:5px"></div>`,
               className: 'marker',
               iconSize: [10, 10],
-              iconAnchor: [10, 10]
+              iconAnchor: [10, 10],
+              popupAnchor: [-5, -10]
             })
           }).addTo(PointLayer).bindPopup(place.name)
         })

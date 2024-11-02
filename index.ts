@@ -14,6 +14,7 @@ interface Place {
 	placeName: string;
 	isDayOff: DayOff;
 	isPosition: boolean;
+	countyName: string;
 	position?: Position;
 }
 interface County {
@@ -137,6 +138,9 @@ async function getDataFromOfficialSite(): Promise<TyphoonData> {
 						isPosition: isPosition,
 						position: school,
 					},
+					{
+						countyName: countyName||'',
+					},
 				);
 			});
 		const result: County = {
@@ -186,6 +190,15 @@ const server = Bun.serve({
 		);
 		if (url.pathname === '/') {
 			return new Response(await readFile('./rawhtml/test.html'), {
+				headers: {
+					'content-type': 'text/html',
+					'Cache-Control': 'no-store, max-age:0',
+				},
+				status: 200,
+			});
+		}
+		if (url.pathname === '/test') {
+			return new Response(await readFile('./rawhtml/test-version.html'), {
 				headers: {
 					'content-type': 'text/html',
 					'Cache-Control': 'no-store, max-age:0',
