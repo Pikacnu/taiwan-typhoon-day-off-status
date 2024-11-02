@@ -203,16 +203,23 @@ const server = Bun.serve({
 				status: 200,
 			});
 		}
-		if (url.pathname === '/api/GeoJson') {
+
+		if (url.pathname === '/api/geoJson/town') {
 			return new Response(await readFile('./tw_town.json'), {
-				headers: { 'Access-Control-Allow-Origin': '*', 'content-type': 'application/json' },
+				headers: {
+					'Access-Control-Allow-Origin': '*',
+					'content-type': 'application/json',
+				},
 				status: 200,
 			});
 		}
-		
-		if (url.pathname === '/api/aaa') {
+
+		if (url.pathname === '/api/geoJson/county') {
 			return new Response(await readFile('./tw_county.json'), {
-				headers: { 'Access-Control-Allow-Origin': '*', 'content-type': 'application/json' },
+				headers: {
+					'Access-Control-Allow-Origin': '*',
+					'content-type': 'application/json',
+				},
 				status: 200,
 			});
 		}

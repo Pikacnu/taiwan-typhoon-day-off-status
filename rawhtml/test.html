@@ -70,7 +70,7 @@
     ])
 
     let main = (async () => {
-      let twTown = await (await fetch(`${window.location.origin}/api/GeoJson`)).json()
+      let twTown = await (await fetch(`${window.location.origin}/api/geoJson/town`)).json()
       let GeoJson = L.geoJSON(twTown, {
         style: function (feature) {
           return {
