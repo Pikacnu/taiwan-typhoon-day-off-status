@@ -69,7 +69,14 @@ async function getDataFromOfficialSite(): Promise<TyphoonData> {
 	let VirtualDOM = new JSDOM(request).window.document;
 	let rows = VirtualDOM.querySelectorAll('tbody.Table_Body>tr');
 	let row: any[] = [];
-	if (rows.length === 1) {
+	if (
+		rows
+			.item(0)
+			?.children[0].children[0].children[0].textContent?.includes(
+				'無停班停課訊息',
+			)
+	) {
+		console.log(`${new Date().toISOString()} | Fetch | Typhoon Data`);
 		return { typhoon: false };
 	}
 
@@ -139,7 +146,7 @@ async function getDataFromOfficialSite(): Promise<TyphoonData> {
 						position: school,
 					},
 					{
-						countyName: countyName||'',
+						countyName: countyName || '',
 					},
 				);
 			});
@@ -199,6 +206,15 @@ const server = Bun.serve({
 		}
 		if (url.pathname === '/test') {
 			return new Response(await readFile('./rawhtml/test-version.html'), {
+				headers: {
+					'content-type': 'text/html',
+					'Cache-Control': 'no-store, max-age:0',
+				},
+				status: 200,
+			});
+		}
+		if (url.pathname === '/test2') {
+			return new Response(await readFile('./rawhtml/watermelon-version.html'), {
 				headers: {
 					'content-type': 'text/html',
 					'Cache-Control': 'no-store, max-age:0',

@@ -198,21 +198,25 @@
         document.getElementById('map').style.zIndex = 0
         resizeMap.style.opacity = 0
         panel.style.display = 'flex'
-        map.removeLayer(twTownDisplay)
+        map.removeLayer(GeoJsonTown)
         map.removeLayer(PointLayer)
         map.addLayer(GeoJsonCounty)
         map.addLayer(outIslandBorder)
         dayoffinfo.innerHTML = CountyColorInfoHTML
       }
       let zoomIn = (bounds, countyName) => {
-        twTownDisplay.clearLayers()
+        update()
         GeoJsonTown.eachLayer((layer) => {
-          if (layer.feature.properties.COUNTYNAME === countyName) {
-            twTownDisplay.addLayer(layer)
+          if (layer.feature.properties.COUNTYNAME !== countyName) {
+            layer.setStyle({
+              fillColor: 'gray',
+              fill: false,
+              color: 'rgba(128,128,128,0.2)',
+              weight: 0.4,
+            })
           }
         })
-
-        twTownDisplay.addTo(map)
+        GeoJsonTown.addTo(map)
         map.addLayer(PointLayer)
         map.removeLayer(outIslandBorder)
         map.removeLayer(GeoJsonCounty)
