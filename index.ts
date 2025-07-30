@@ -62,6 +62,25 @@ const schoolNameProcess = (name: string) => {
   return name;
 };
 
+const isSchool = (name: string) => {
+  const schoolTypes = [
+    '國小',
+    '國中',
+    '高中',
+    '高職',
+    '高工',
+    '高商',
+    '大學',
+    '國民小學',
+    '國民中學',
+    '高級中學',
+    '高級職業學校',
+    '高級工業職業學校',
+    '高級商業職業學校',
+  ];
+  return schoolTypes.some((type) => name.includes(type));
+};
+
 async function getDataFromOfficialSite(): Promise<TyphoonData> {
   const file = await readFile('./schools/schools.json', 'utf-8');
   const schoolData: School[] = await JSON.parse(file);
@@ -133,12 +152,24 @@ async function getDataFromOfficialSite(): Promise<TyphoonData> {
             },
           };
         });
+
         const processedName = schoolNameProcess(placeName);
-        const school = schoolData.find(
-          (school) =>
-            processedName.includes(school.name!) &&
-            school.county === countyName,
-        );
+
+        const school = isSchool(processedName)
+          ? schoolData
+              .filter(
+                (school) =>
+                  school.county === countyName?.replaceAll('臺', '台'),
+              )
+              .map((school) => {
+                const regex = new RegExp(`([${school.name}])`);
+                const score = (regex.exec(processedName)?.length ?? 0) - 1;
+                return [score, school] as [number, School];
+              })
+              .filter((school) => school[0] > 0)
+              .sort((b, a) => b[0] - a[0])[0]?.[1]
+          : undefined;
+
         const isPosition = school !== undefined;
         if (isPosition) {
           delete school.name;
@@ -198,7 +229,10 @@ let cacheFunction = await (async (): Promise<
   };
 })();
 
+const Port = process.env.PORT || 3000;
+
 logger.log('Server is starting...');
+logger.log(`Server is running at http://localhost:${Port}/`);
 
 const htmlScanner = new Glob('*.html');
 const htmlFilesPath = './rawhtml/preview';
@@ -215,7 +249,7 @@ for await (const file of htmlScanner.scan(htmlFilesPath)) {
 }
 
 const server = Bun.serve({
-  port: 3000,
+  port: Port,
   hostname: 'localhost',
   async fetch(req: Request) {
     let url = new URL(req.url);

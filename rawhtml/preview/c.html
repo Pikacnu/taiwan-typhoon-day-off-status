@@ -28,17 +28,60 @@
       background-color: gray;
       color: black;
     }
+
+    .flex-row {
+      display: flex;
+      flex-direction: row;
+    }
+
+    .flex-column {
+      display: flex;
+      flex-direction: column;
+
+    }
+
+    .menu {
+      display: flex;
+      width: 50%;
+    }
+
+    .phone-hidden {
+      display: flex;
+    }
+
+    @media screen and (max-width: 768px) {
+      .flex-row {
+        flex-direction: column-reverse;
+      }
+
+      .flex-row>* {
+        height: 50%;
+        max-height: 50vh;
+      }
+
+      .flex-column {
+        flex-direction: row;
+      }
+
+      .menu {
+        width: 100%;
+      }
+
+      .phone-hidden {
+        display: none;
+      }
+    }
   </style>
 </head>
 
-<body style="margin: 0;padding: 0">
+<body style="margin: 0;padding: 0;height: 100vh;">
   <button
     style="position: absolute; right: 5rem;top: 5rem; z-index: 100;color: black;border-radius: 1000px;background-color: white;opacity: 0;user-select: auto;"
     id="resizeMap">
     X
   </button>
-  <div style="display: flex; flex-direction: row; width: 100%; height: 100vh; position: relative;">
-    <div style="width:50%; background-color: black; display: flex;flex-direction: column; color: white;">
+  <div class="flex-row" style=" width: 100%; position: relative; overflow-y: auto; height: 100%;">
+    <div class="menu" style="background-color: black; display: flex;flex-direction: column; color: white;">
       <h1 style="color: white;">台灣颱風停班停課狀態</h1>
       <div style="flex-grow: 1; display: flex; flex-direction: column; overflow:auto;">
         <h2> 今日放假 </h2>
@@ -63,10 +106,11 @@
       </div>
     </div>
     <div style="flex: 1; position: relative; overflow: hidden; flex-grow: 1;">
-      <div id="map" style="height: 100dvh; overflow:hidden;background-color: rgb(63, 63, 63);"></div>
+      <div id="map" style="height: 100%; flex-grow: 1; overflow:hidden;background-color: rgb(63, 63, 63);">
+      </div>
       <p id="lastupdate" style="position: absolute; font-size: large; top:0;right: 2rem;color:white;z-index:9999;"></p>
-      <div
-        style="display:flex;flex-direction:column;position: absolute;bottom: 0;margin: 0.5rem;outline:solid rgb(20, 20, 20) 1px;background-color: rgba(53, 53, 53,0.25);border-radius: 15px;;padding: 0.75rem;color: white;z-index:9999;"
+      <div class="phone-hidden"
+        style="flex-direction:column;position: absolute;bottom: 0;margin: 0.5rem;outline:solid rgb(20, 20, 20) 1px;background-color: rgba(53, 53, 53,0.25);border-radius: 15px;;padding: 0.75rem;color: white;z-index:9999;"
         id="info-panel">
         <div
           style="display: flex; flex-direction: row;align-items: center;justify-content: center;border-radius: 20px;background-color: rgba(128, 128, 128, 0.301);">
@@ -104,6 +148,7 @@
     let tomorrowDayOffInfo = document.getElementById('tomorrow-off-info')
     let bothDayOffInfo = document.getElementById('both-off-info')
     let width = (window.innerWidth > 0) ? window.innerWidth : screen.width;
+    const TyphoonPlaceCountyMarkerMap = new Map();
     const isMobile = width < 768
 
     let schoolDayoffData = null
@@ -243,7 +288,7 @@
         resizeMap.style.opacity = 0
         panel.style.display = 'flex'
         map.removeLayer(twTownDisplay)
-        //map.removeLayer(PointLayer)
+        map.removeLayer(PointLayer)
         map.addLayer(GeoJsonCounty)
         map.addLayer(outIslandBorder)
         dayoffinfo.innerHTML = CountyColorInfoHTML
@@ -257,7 +302,13 @@
         })
 
         twTownDisplay.addTo(map)
-        //map.addLayer(PointLayer)
+
+        PointLayer.clearLayers()
+        TyphoonPlaceCountyMarkerMap.get(countyName)?.forEach((marker) => {
+          marker.addTo(PointLayer)
+        })
+        map.addLayer(PointLayer)
+
         map.removeLayer(outIslandBorder)
         map.removeLayer(GeoJsonCounty)
         if (['高雄市', '宜蘭縣'].includes(countyName)) {
@@ -397,9 +448,7 @@
               });
             }
           });
-        })
-
-
+        });
       }
 
       const update = () => {
@@ -415,6 +464,8 @@
 
         setMenuStatus(TyphoonCounties, TyphoonTowns, TyphoonPlaces)
 
+        TyphoonPlaceCountyMarkerMap.clear()
+
         TyphoonPlaces.forEach((place) => {
           const marker = L.marker(place.position, {
             icon: L.divIcon({
@@ -424,7 +475,13 @@
               iconAnchor: [10, 10],
               popupAnchor: [-5, -10]
             })
-          }).addTo(PointLayer).bindPopup(place.name)
+          }).bindPopup(place.name)
+
+          if (TyphoonPlaceCountyMarkerMap.has(place.countyName)) {
+            TyphoonPlaceCountyMarkerMap.get(place.countyName).push(marker)
+          } else {
+            TyphoonPlaceCountyMarkerMap.set(place.countyName, [marker])
+          }
         })
 
         GeoJsonTown.eachLayer((layer) => {
@@ -557,7 +614,6 @@
       //GeoJsonTown.addTo(map);
       outIslandBorder.addTo(map)
       GeoJsonCounty.addTo(map);
-      PointLayer.addTo(map);
       dayoffinfo.innerHTML = CountyColorInfoHTML
 
       while (true) {
