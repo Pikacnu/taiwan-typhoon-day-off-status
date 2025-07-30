@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, mainial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <title>Taiwan Typhoon Day Off Status</title>
+  <meta property="og:description" content="A map of Taiwan to show where is dayoff">
+  <meta property="og:title" content="Taiwan Typhoon Day Off Status">
+  <style>
+    .marker {
+      border-radius: 5px;
+    }
+  </style>
+</head>
+
+<body style="margin: 0;padding: 0">
+  <button
+    style="position: absolute; right: 5rem;top: 5rem; z-index: 100;color: black;border-radius: 1000px;background-color: white;opacity: 0;user-select: auto;"
+    id="resizeMap">
+    X
+  </button>
+  <div id="map" style="height: 100dvh; overflow:hidden;background-color: rgb(63, 63, 63);"></div>
+  <p id="lastupdate" style="position: absolute; font-size: large; top:0;right: 2rem;color:white;z-index:9999;"></p>
+  <div
+    style="display:flex;flex-direction:column;position: absolute;bottom: 0;margin: 0.5rem;outline:solid rgb(20, 20, 20) 1px;background-color: rgba(53, 53, 53,0.25);border-radius: 15px;;padding: 0.75rem;color: white;z-index:9999;"
+    id="info-panel">
+    <div
+      style="display: flex; flex-direction: row;align-items: center;justify-content: center;border-radius: 20px;background-color: rgba(128, 128, 128, 0.301);">
+      <input type="checkbox" name="Toggle" id="toggle" hidden>
+      <label for="toggle" style="cursor: pointer;user-select: none;">切換顯示</label>
+    </div>
+    <p id="show-info">目前顯示 : 上班</p>
+    <!--
+    <div style="display: flex;position: relative;align-items: center;">
+      <div style="padding: 0.5rem;background-color: purple;"></div>
+      <p>你的位置</p>
+    </div>
+    -->
+    <div style="display: flex;flex-direction: column;" id="dayoffinfo"></div>
+
+  </div>
+  <script>
+    let map = L.map('map', {
+      zoomControl: false,
+      attributionControl: false,
+      zoomDelta: 0.25,
+      zoomSnap: 0.25,
+      maxZoom: 18,
+      minZoom: 1,
+      style: 'mapbox://styles/mapbox/streets-v11',
+    }).setView([23.97565, 120.9738819], 8);
+    let lastupdate = document.getElementById('lastupdate')
+    let showInfo = document.getElementById('show-info')
+    let toggle = document.getElementById('toggle')
+    let dayoffinfo = document.getElementById('dayoffinfo')
+    let panel = document.getElementById('info-panel')
+    let width = (window.innerWidth > 0) ? window.innerWidth : screen.width;
+    const isMobile = width < 768
+
+    let schoolDayoffData = null
+    let workDayoffData = null
+
+    const TownColorInfoHTML = `
+    <div style="display: flex;position: relative;align-items: center;">
+      <div style="padding: 0.5rem;background-color: yellow;"></div>
+      <p>明日停班/停課</p>
+      </div>
+      <div style="display: flex;position: relative;align-items: center;">
+        <div style="padding: 0.5rem;background-color: blue;"></div>
+        <p>今日停班/停課</p>
+        </div>
+        <div style="display: flex;position: relative;align-items: center;">
+          <div style="padding: 0.5rem;background-color: red;"></div>
+          <p>兩日皆停班/停課</p>
+          </div>
+          <div style="display: flex;position: relative;align-items: center;">
+            <div style="padding: 0.5rem;background-color: gray;"></div>
+            <p>正常上班/上課</p>
+            </div>
+            `
+
+    const CountyColorInfoHTML = `
+            <div style="display: flex;position: relative;align-items: center;">
+              <div style="padding: 0.5rem;background-color: blue;"></div>
+              <p>停班停課</p>
+              </div>
+              <div style="display: flex;position: relative;align-items: center;">
+                <div style="padding: 0.5rem;background-color: orange;"></div>
+                <p>部分停班/停課</p>
+                </div>
+                <div style="display: flex;position: relative;align-items: center;">
+                  <div style="padding: 0.5rem;background-color: gray;"></div>
+                  <p>正常上班/上課</p>
+                  </div>
+                  `
+    const posChangeMap = new Map([
+      ["連江縣", [0.0, -0.5]],
+      ["金門縣", [1.75, 0.3]],
+      ["澎湖縣", [0.55, 0.8]],
+      ["烏坵鄉", [-1, -0.25]]
+    ])
+
+    let ColorMap = new Map([
+      ['tomorrow', 'yellow'],
+      ['today', 'blue'],
+      ['some', 'green'],
+      ['both', 'red'],
+      ['false', 'gray'],
+      ['some', 'orange']
+    ])
+
+    let outIslandBorder = L.layerGroup()
+    let twTownDisplay = L.featureGroup()
+
+    let main = (async () => {
+      let twTown = await (await fetch(`${window.location.origin}/api/geoJson/town`)).json()
+      twTown.feature = twTown.features.map((feature) => {
+        if (posChangeMap.get(feature.properties.COUNTYNAME)) {
+          const changePos = posChangeMap.get(feature.properties.COUNTYNAME)
+          feature.geometry.coordinates = feature.geometry.coordinates.map((a1) =>
+            a1.map((a2) =>
+              typeof a2[0] !== "number" ? a2.map((pos) => {
+                if (posChangeMap.get(feature.properties.TOWNNAME)) {
+                  const dPos = posChangeMap.get(feature.properties.TOWNNAME)
+                  return [pos[0] + changePos[0] + dPos[0], pos[1] + changePos[1] + dPos[1]]
+                }
+                return [pos[0] + changePos[0], pos[1] + changePos[1]]
+              }) : [a2[0] + changePos[0], a2[1] + changePos[1]]
+            ))
+        }
+        return feature
+      })
+
+      const GeoJsonTown = L.geoJSON(twTown, {
+        style: function (feature) {
+          return {
+            color: 'gray',
+            fillColor: 'white',
+            fill: false,
+            weight: 0.5,
+          };
+        },
+      }).bindPopup((layer) => {
+        return layer.feature.properties.TOWNNAME;
+      });
+
+      let twCounty = await (await fetch(`${window.location.origin}/api/geoJson/county`)).json()
+      twCounty.feature = twCounty.features.map((feature) => {
+        if (posChangeMap.get(feature.properties.COUNTYNAME)) {
+          const changePos = posChangeMap.get(feature.properties.COUNTYNAME)
+          feature.geometry.coordinates = feature.geometry.coordinates.map((a1, i) =>
+            a1.map((a2) =>
+              a2.map((pos) => {
+                if (feature.properties.COUNTYNAME === '金門縣' && feature.geometry.coordinates.length - i <= 2) {
+                  const dPos = posChangeMap.get("烏坵鄉")
+                  return [pos[0] + changePos[0] + dPos[0], pos[1] + changePos[1] + dPos[1]]
+                }
+                return [pos[0] + changePos[0], pos[1] + changePos[1]]
+              })
+            ))
+        }
+        return feature
+      })
+      const GeoJsonCounty = L.geoJSON(twCounty, {
+        style: function (feature) {
+          return {
+            color: 'gray',
+            fillColor: 'white',
+            fill: false,
+            weight: 0.5,
+          };
+        },
+        onEachFeature: function (feature, layer) {
+          feature.maxZoom = 10
+          feature.maxZoomReverse = true
+          layer.on('click', function (e) {
+            zoomIn(layer.getBounds(), feature.properties.COUNTYNAME)
+          })
+          if (posChangeMap.get(feature.properties.COUNTYNAME)) {
+            const bounds = layer.getBounds();
+            L.rectangle(bounds, { color: "#ff7800", weight: 1, fill: false }).addTo(outIslandBorder)
+          }
+        },
+      }).bindPopup((layer) => {
+        return layer.feature.properties.COUNTYNAME;
+      })
+
+      const twBoundsCustomCounty = new Map([['高雄市', [[23.497613, 121.021119], [22.430078, 120.093567]]], ['宜蘭縣', [[24.281975, 121.222760], [25.019495, 122.068352]]]])
+
+      let resizeMap = document.getElementById('resizeMap')
+      resizeMap.onclick = () => {
+        map.setView([23.97565, 120.9738819], 8)
+        document.getElementById('map').style.zIndex = 0
+        resizeMap.style.opacity = 0
+        panel.style.display = 'flex'
+        map.removeLayer(GeoJsonTown)
+        map.removeLayer(PointLayer)
+        map.addLayer(GeoJsonCounty)
+        map.addLayer(outIslandBorder)
+        dayoffinfo.innerHTML = CountyColorInfoHTML
+      }
+      let zoomIn = (bounds, countyName) => {
+        update()
+        GeoJsonTown.eachLayer((layer) => {
+          if (layer.feature.properties.COUNTYNAME !== countyName) {
+            layer.setStyle({
+              fillColor: 'gray',
+              fill: false,
+              color: 'rgba(128,128,128,0.2)',
+              weight: 0.4,
+            })
+          }
+        })
+        GeoJsonTown.addTo(map)
+        map.addLayer(PointLayer)
+        map.removeLayer(outIslandBorder)
+        map.removeLayer(GeoJsonCounty)
+        if (['高雄市', '宜蘭縣'].includes(countyName)) {
+          bounds = L.latLngBounds(twBoundsCustomCounty.get(countyName).map((v) => L.latLng(v)))
+        }
+        map.fitBounds(bounds)
+        document.getElementById('map').style.zIndex = -1
+        resizeMap.style.opacity = 1
+        //panel.style.display = 'none'
+        dayoffinfo.innerHTML = TownColorInfoHTML
+      }
+
+      let PointLayer = L.layerGroup()
+
+      let type = 'work'
+
+      let userPosition = null
+      //user Position Mark
+
+      if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition((position) => {
+          const marker = L.marker([position.coords.latitude, position.coords.longitude], {
+            icon: L.divIcon({
+              html: `<div style="width:100%;height:100%;background-color:purple;border-radius:5px"></div>`,
+              className: 'marker',
+              iconSize: [10, 10],
+              iconAnchor: [10, 10],
+              popupAnchor: [-5, -10]
+            })
+          }).addTo(map).bindPopup('你的位置').openPopup()
+          userPosition = position
+        })
+      }
+
+      const update = () => {
+
+        let TyphoonCounties = type === 'school' ? schoolDayoffData.TyphoonCounties : workDayoffData.TyphoonCounties
+        let TyphoonTowns = type === 'school' ? schoolDayoffData.TyphoonTowns : workDayoffData.TyphoonTowns
+        let TyphoonPlaces = type === 'school' ? schoolDayoffData.TyphoonPlaces : workDayoffData.TyphoonPlaces
+        PointLayer.clearLayers()
+        console.log('----update----')
+        console.log(TyphoonCounties)
+        console.log(TyphoonTowns)
+        console.log(TyphoonPlaces)
+        console.log('----update----')
+
+        TyphoonPlaces.forEach((place) => {
+          const marker = L.marker(place.position, {
+            icon: L.divIcon({
+              html: `<div style="width:100%;height:100%;background-color:${ColorMap.get(place.type)};border-radius:5px"></div>`,
+              className: 'marker',
+              iconSize: [10, 10],
+              iconAnchor: [10, 10],
+              popupAnchor: [-5, -10]
+            })
+          }).addTo(PointLayer).bindPopup(place.name)
+        })
+
+        GeoJsonTown.eachLayer((layer) => {
+          const TownDayOffData = TyphoonTowns.find((town) => town.name === layer.feature.properties.TOWNNAME)
+          if (TownDayOffData) {
+            return layer.setStyle({
+              color: 'gray',
+              fillColor: ColorMap.get(TownDayOffData.type),
+              fill: true
+            })
+          }
+
+          const countyDayOffData = TyphoonCounties.find((county) => county.county === layer.feature.properties.COUNTYNAME)
+          if (countyDayOffData) {
+            return layer.setStyle({
+              color: 'gray',
+              fillColor: ColorMap.get(countyDayOffData.type),
+              fill: true
+            })
+          }
+          return layer.setStyle({
+            color: 'gray',
+            fillColor: 'gray',
+            fill: true
+          })
+        })
+
+        GeoJsonCounty.eachLayer((layer) => {
+          const countyDayOffData = TyphoonCounties.find((county) => county.county === layer.feature.properties.COUNTYNAME)
+          if (countyDayOffData) {
+            return layer.setStyle({
+              color: 'gray',
+              fillColor: ColorMap.get(countyDayOffData.type),
+              fill: true
+            })
+          }
+          const TownDayOffData = TyphoonTowns.some((town) => town.countyName === layer.feature.properties.COUNTYNAME)
+          if (TownDayOffData) {
+            return layer.setStyle({
+              color: 'gray',
+              fillColor: ColorMap.get('some'),
+              fill: true
+            })
+          }
+          return layer.setStyle({
+            color: 'gray',
+            fillColor: 'gray',
+            fill: true
+          })
+        })
+      }
+
+      const getDayOffType = (data) => {
+        if (data?.today === true && data?.tomorrow === true) return 'both'
+        if (data?.today === true) return 'today'
+        if (data?.tomorrow === true) return 'tomorrow'
+        return 'false'
+      }
+      const sleep = (time) => new Promise((resolve) => setTimeout(resolve, 1000 * time));
+      const updateDataFromBackend = (() => {
+        let time = Infinity
+        if (time - new Date().getTime() < 1000 * 30)
+          return () => { };
+        time = new Date().getTime()
+        lastupdate.innerHTML = '資料更新中...'
+        return async () => {
+          const req = (await (await fetch(`${window.location.origin}/api/typhoon`)).json())
+          const data = req.data
+          const isTyphoon = req.typhoon
+          const time = req.time
+          if (isTyphoon === false) {
+            TyphoonCounties = []
+            TyphoonTowns = []
+            TyphoonPlaces = []
+          }
+          if (isTyphoon === true) {
+            const [school, work] = ['school', 'work'].map((type) => {
+              const TyphoonCounties = data.filter((county) => Object.values(county.isDayOff).some(v => v)).map((county) => {
+                const dayOffStatus = county.isDayOff[type]
+                return {
+                  county: county.countyName,
+                  type: getDayOffType(dayOffStatus)
+                }
+              })
+              const Places = data.map((county) => county.place).flat()
+              const TyphoonTowns = Places.filter((place) => !place.isPosition).map((place) => {
+                const dayOffStatus = place.isDayOff[type]
+                return {
+                  name: place.placeName,
+                  countyName: place.countyName,
+                  type: getDayOffType(dayOffStatus)
+                }
+              })
+              const TyphoonPlaces = Places.filter((place) => place.isPosition).map((place) => {
+                const dayOffStatus = place.isDayOff[type]
+                return {
+                  name: place.placeName,
+                  countyName: place.countyName,
+                  type: getDayOffType(dayOffStatus),
+                  position: place.position
+                }
+              })
+              return {
+                TyphoonCounties,
+                TyphoonTowns,
+                TyphoonPlaces
+              }
+            })
+            schoolDayoffData = school
+            workDayoffData = work
+          }
+          update()
+          lastupdate.innerHTML = `最後更新時間: ${new Date(time).toLocaleDateString()} ${new Date(time).toLocaleTimeString()}`
+          console.log('update')
+          return;
+        }
+      })();
+
+      toggle.addEventListener('change', () => {
+        if (toggle.checked) {
+          type = 'school'
+          showInfo.innerHTML = '目前顯示 : 上課'
+        } else {
+          type = 'work'
+          showInfo.innerHTML = '目前顯示 : 上班'
+        }
+        updateDataFromBackend()
+      })
+
+      //GeoJsonTown.addTo(map);
+      //PointLayer.addTo(map);
+      outIslandBorder.addTo(map)
+      GeoJsonCounty.addTo(map);
+      dayoffinfo.innerHTML = CountyColorInfoHTML
+
+      while (true) {
+        try {
+          await updateDataFromBackend()
+        } catch (e) {
+          console.error(e)
+        }
+        await sleep(30)
+      }
+    })
+    main()
+    //document.querySelector('div.leaflet-control-container').style.display = 'none'
+  </script>
+</body>
+
+</html>

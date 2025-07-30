@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, mainial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <title>Taiwan Typhoon Day Off Status</title>
+  <meta property="og:description" content="A map of Taiwan to show where is dayoff">
+  <meta property="og:title" content="Taiwan Typhoon Day Off Status">
+  <style>
+    .marker {
+      border-radius: 5px;
+    }
+  </style>
+</head>
+
+<body style="margin: 0;padding: 0">
+  <div id="map" style="height: 100dvh; overflow:hidden;background-color: rgb(63, 63, 63);"></div>
+  <p id="lastupdate" style="position: absolute; font-size: large; top:0;right: 2rem;color:white;z-index:9999;"></p>
+  <div
+    style="display:flex;flex-direction:column;position: absolute;bottom: 0;margin: 0.5rem;outline:solid rgb(20, 20, 20);;background-color: rgba(53, 53, 53,0.8);border-radius: 15px;;padding: 0.75rem;color: white;z-index:9999;">
+
+    <div
+      style="display: flex; flex-direction: row;align-items: center;justify-content: center;border-radius: 20px;background-color: gray;">
+      <input type="checkbox" name="Toggle" id="toggle" hidden>
+      <label for="toggle" style="cursor: pointer;user-select: none;">切換顯示</label>
+    </div>
+    <p id="show-info">目前顯示 : 上班</p>
+    <div style="display: flex;position: relative;align-items: center;">
+      <div style="padding: 0.5rem;background-color: purple;"></div>
+      <p>你的位置</p>
+    </div>
+    <div style="display: flex;"></div>
+    <div style="display: flex;position: relative;align-items: center;">
+      <div style="padding: 0.5rem;background-color: yellow;"></div>
+      <p>明日颱風假</p>
+    </div>
+    <div style="display: flex;position: relative;align-items: center;">
+      <div style="padding: 0.5rem;background-color: blue;"></div>
+      <p>今日颱風假</p>
+    </div>
+    <div style="display: flex;position: relative;align-items: center;">
+      <div style="padding: 0.5rem;background-color: red;"></div>
+      <p>兩天都放</p>
+    </div>
+    <div style="display: flex;position: relative;align-items: center;">
+      <div style="padding: 0.5rem;background-color: gray;"></div>
+      <p>沒有放假</p>
+    </div>
+  </div>
+  <script>
+    let map = L.map('map').setView([23.97565, 120.9738819], 8);
+    let TyphoonCounties = []
+    let TyphoonTowns = []
+    let TyphoonPlaces = []
+    let lastupdate = document.getElementById('lastupdate');
+    let showInfo = document.getElementById('show-info');
+    let toggle = document.getElementById('toggle');
+
+    let ColorMap = new Map([
+      ['tomorrow', 'yellow'],
+      ['today', 'blue'],
+      ['some', 'green'],
+      ['both', 'red'],
+      ['false', 'gray']
+    ])
+
+    let main = (async () => {
+      let twTown = await (await fetch(`${window.location.origin}/api/geoJson/town`)).json()
+      let GeoJson = L.geoJSON(twTown, {
+        style: function (feature) {
+          return {
+            color: 'gray',
+            fillColor: 'white',
+            fill: false,
+            weight: 0.5,
+          };
+        }
+      }).bindPopup((layer) => {
+        return layer.feature.properties.TOWNNAME;
+      });
+
+      let PointLayer = L.layerGroup()
+
+      let type = 'work'
+
+      const update = () => {
+        PointLayer.clearLayers()
+        console.log('----update----')
+        console.log(TyphoonCounties)
+        console.log(TyphoonTowns)
+        console.log(TyphoonPlaces)
+        console.log('----update----')
+
+        //user Position Mark
+
+        if ("geolocation" in navigator) {
+          navigator.geolocation.getCurrentPosition((position) => {
+            const marker = L.marker([position.coords.latitude, position.coords.longitude], {
+              icon: L.divIcon({
+                html: `<div style="width:100%;height:100%;background-color:purple;border-radius:5px"></div>`,
+                className: 'marker',
+                iconSize: [10, 10],
+                iconAnchor: [10, 10],
+                popupAnchor: [-5, -10]
+              })
+            }).addTo(PointLayer).bindPopup('你的位置').openPopup()
+          })
+        }
+
+        TyphoonPlaces.forEach((place) => {
+          const marker = L.marker(place.position, {
+            icon: L.divIcon({
+              html: `<div style="width:100%;height:100%;background-color:${ColorMap.get(place.type)};border-radius:5px"></div>`,
+              className: 'marker',
+              iconSize: [10, 10],
+              iconAnchor: [10, 10],
+              popupAnchor: [-5, -10]
+            })
+          }).addTo(PointLayer).bindPopup(place.name)
+        })
+
+        GeoJson.eachLayer((layer) => {
+          const TownDayOffData = TyphoonTowns.find((town) => town.name === layer.feature.properties.TOWNNAME)
+          if (TownDayOffData) {
+            return layer.setStyle({
+              color: 'gray',
+              fillColor: ColorMap.get(TownDayOffData.type),
+              fill: true
+            })
+          }
+
+          const countyDayOffData = TyphoonCounties.find((county) => county.county === layer.feature.properties.COUNTYNAME)
+          if (countyDayOffData) {
+            return layer.setStyle({
+              color: 'gray',
+              fillColor: ColorMap.get(countyDayOffData.type),
+              fill: true
+            })
+          }
+          return layer.setStyle({
+            color: 'gray',
+            fillColor: 'white',
+            fill: false
+          })
+        })
+      }
+
+      GeoJson.addTo(map);
+      PointLayer.addTo(map);
+      const getDayOffType = (data) => {
+        if (data?.today === true && data?.tomorrow === true) return 'both'
+        if (data?.today === true) return 'today'
+        if (data?.tomorrow === true) return 'tomorrow'
+        return 'false'
+      }
+      const sleep = (time) => new Promise((resolve) => setTimeout(resolve, 1000 * time));
+      const updateDataFromBackend = (() => {
+        let time = Infinity
+        if (time - new Date().getTime() < 1000 * 30)
+          return () => { };
+        time = new Date().getTime()
+        lastupdate.innerHTML = '資料更新中...'
+        return async () => {
+          const req = (await (await fetch(`${window.location.origin}/api/typhoon`)).json())
+          const data = req.data
+          const isTyphoon = req.typhoon
+          const time = req.time
+          if (isTyphoon === false) {
+            TyphoonCounties = []
+            TyphoonTowns = []
+            TyphoonPlaces = []
+          }
+          if (isTyphoon === true) {
+            TyphoonCounties = data.filter((county) => Object.values(county.isDayOff).some(v => v)).map((county) => {
+              const dayOffStatus = county.isDayOff[type]
+              return {
+                county: county.countyName,
+                type: getDayOffType(dayOffStatus)
+              }
+            })
+            const Places = data.map((county) => county.place).flat()
+            TyphoonTowns = Places.filter((place) => !place.isPosition).map((place) => {
+              const dayOffStatus = place.isDayOff[type]
+              return {
+                name: place.placeName,
+                type: getDayOffType(dayOffStatus)
+              }
+            })
+            TyphoonPlaces = Places.filter((place) => place.isPosition).map((place) => {
+              const dayOffStatus = place.isDayOff[type]
+              return {
+                name: place.placeName,
+                type: getDayOffType(dayOffStatus),
+                position: place.position
+              }
+            })
+
+          }
+          update()
+          lastupdate.innerHTML = `最後更新時間: ${new Date(time).toLocaleDateString()} ${new Date(time).toLocaleTimeString()}`
+          console.log('update')
+          return;
+        }
+      })();
+
+      toggle.addEventListener('change', () => {
+        if (toggle.checked) {
+          type = 'school'
+          showInfo.innerHTML = '目前顯示 : 上課'
+        } else {
+          type = 'work'
+          showInfo.innerHTML = '目前顯示 : 上班'
+        }
+        updateDataFromBackend()
+      })
+
+      while (true) {
+        try {
+          await updateDataFromBackend()
+        } catch (e) {
+          console.error(e)
+        }
+        await sleep(30)
+      }
+    })
+    main()
+    document.querySelector('div.leaflet-control-container').style.display = 'none'
+  </script>
+</body>
+
+</html>

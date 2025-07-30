@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, mainial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <title>Taiwan Typhoon Day Off Status</title>
+  <meta property="og:description" content="A map of Taiwan to show where is dayoff">
+  <meta property="og:title" content="Taiwan Typhoon Day Off Status">
+  <style>
+    .marker {
+      border-radius: 5px;
+    }
+  </style>
+</head>
+
+<body style="margin: 0;padding: 0;background-color: #3f3f3f;">
+  <p id="lastupdate" style="position: absolute; font-size: large; top:0;left: 2rem;color:white;z-index:9999;"></p>
+  <div style="display: flex;height: 100vh;width: 100%;">
+    <div id="map" style="height: 100dvh; overflow:hidden;background-color: rgb(63, 63, 63);flex-grow: 1;"></div>
+    <div id="show-info"
+      style="display:flex;flex-direction:column;flex-wrap: wrap;overflow-wrap: anywhere;margin: 0.5rem;outline:solid rgb(20, 20, 20);background-color: rgba(53, 53, 53,0.8);border-radius: 15px;padding: 0.75rem;color: white;z-index:9999;right: 0;">
+
+    </div>
+  </div>
+  <script>
+    let map = L.map('map', {
+      preferCanvas: true
+    }).setView([23.97565, 120.9738819], 8);
+    let TyphoonCounties = []
+    let TyphoonTowns = []
+    let TyphoonPlaces = []
+    let lastupdate = document.getElementById('lastupdate')
+    let showInfo = document.getElementById('show-info')
+    let toggle = document.getElementById('toggle')
+
+    const addShowInfo = (text) => {
+      const p = document.createElement('p')
+      p.innerText = text
+      p.style.padding = '0.5rem'
+      showInfo.appendChild(p)
+    }
+
+    let ColorMap = new Map([
+      ['tomorrow', 'yellow'],
+      ['today', 'blue'],
+      ['some', 'green'],
+      ['both', 'red'],
+      ['false', 'gray']
+    ])
+
+    let TypeTextMap = new Map([
+      ['tomorrow', '明日颱風假'],
+      ['today', '今日颱風假'],
+      ['some', '部分放假'],
+      ['both', '兩天都放'],
+      ['false', '沒有放假']
+    ])
+
+    let main = (async () => {
+      let twTown = await (await fetch(`http://localhost:3000/api/geoJson/town`)).json()
+      let GeoJson = L.geoJSON(twTown, {
+        style: function (feature) {
+          return {
+            color: 'gray',
+            fillColor: 'white',
+            fill: false,
+            weight: 0.5,
+          };
+        }
+      }).bindPopup((layer) => {
+        return layer.feature.properties.TOWNNAME;
+      });
+
+      let PointLayer = L.layerGroup()
+
+      let type = 'work'
+
+      const update = () => {
+        //reset
+        PointLayer.clearLayers()
+        showInfo.innerHTML = ''
+
+        if ("geolocation" in navigator) {
+          navigator.geolocation.getCurrentPosition((position) => {
+            const marker = L.marker([position.coords.latitude, position.coords.longitude], {
+              icon: L.divIcon({
+                html: `<div style="width:100%;height:100%;background-color:purple;border-radius:5px"></div>`,
+                className: 'marker',
+                iconSize: [10, 10],
+                iconAnchor: [10, 10],
+                popupAnchor: [10, -10]
+              })
+            }).addTo(PointLayer).bindPopup('你的位置').openPopup()
+          })
+        }
+
+        TyphoonPlaces.forEach((place) => {
+          addShowInfo(`${layer.feature.properties.COUNTYNAME} ${TypeTextMap.get(countyDayOffData?.type)}`)
+          const marker = L.marker(place.position, {
+            icon: L.divIcon({
+              html: `<div style="width:100%;height:100%;background-color:${ColorMap.get(place.type)};border-radius:5px"></div>`,
+              className: 'marker',
+              iconSize: [10, 10],
+              iconAnchor: [10, 10]
+            })
+          }).addTo(PointLayer).bindPopup(place.name)
+        })
+        TyphoonCounties.forEach((county) => {
+          addShowInfo(`${county.county} ${TypeTextMap.get(county.type)}`)
+        })
+
+        GeoJson.eachLayer((layer) => {
+          const TownDayOffData = TyphoonTowns.find((town) => town.name === layer.feature.properties.TOWNNAME)
+          if (TownDayOffData) {
+            return layer.setStyle({
+              color: 'gray',
+              fillColor: ColorMap.get(TownDayOffData.type),
+              fill: true
+            })
+          }
+
+          const countyDayOffData = TyphoonCounties.find((county) => county.county === layer.feature.properties.COUNTYNAME)
+          if (countyDayOffData) {
+            return layer.setStyle({
+              color: 'gray',
+              fillColor: ColorMap.get(countyDayOffData.type),
+              fill: true
+            })
+          }
+          return layer.setStyle({
+            color: 'gray',
+            fillColor: 'white',
+            fill: false
+          })
+        })
+      }
+
+      GeoJson.addTo(map);
+      let twCounty = await (await fetch(`http://localhost:3000/api/geoJson/county`)).json()
+      L.geoJSON(twCounty, {
+        style: function (feature) {
+          return {
+            color: '#0a0a0a',
+            fillColor: '#0a0a0a',
+            fill: false,
+            weight: 1.5,
+          };
+        }
+      }).addTo(map)
+      PointLayer.addTo(map);
+      const getDayOffType = (data) => {
+        if (data?.today === true && data?.tomorrow === true) return 'both'
+        if (data?.today === true) return 'today'
+        if (data?.tomorrow === true) return 'tomorrow'
+        return 'false'
+      }
+      const sleep = (time) => new Promise((resolve) => setTimeout(resolve, 1000 * time));
+      const updateDataFromBackend = async () => {
+        const req = (await (await fetch(`http://localhost:3000/api/typhoon`)).json())
+        const data = req.data
+        const isTyphoon = req.typhoon
+        const time = req.time
+        if (isTyphoon === false) {
+          TyphoonCounties = []
+          TyphoonTowns = []
+          TyphoonPlaces = []
+        }
+        if (isTyphoon === true) {
+          TyphoonCounties = data.filter((county) => Object.values(county.isDayOff).some(v => v)).map((county) => {
+            const dayOffStatus = county.isDayOff[type]
+            return {
+              county: county.countyName,
+              type: getDayOffType(dayOffStatus)
+            }
+          })
+          const Places = data.map((county) => county.place).flat()
+          TyphoonTowns = Places.filter((place) => !place.isPosition).map((place) => {
+            const dayOffStatus = place.isDayOff[type]
+            return {
+              name: place.placeName,
+              type: getDayOffType(dayOffStatus)
+            }
+          })
+          TyphoonPlaces = Places.filter((place) => place.isPosition).map((place) => {
+            const dayOffStatus = place.isDayOff[type]
+            return {
+              name: place.placeName,
+              type: getDayOffType(dayOffStatus),
+              position: place.position
+            }
+          })
+
+        }
+        update()
+        lastupdate.innerHTML = `最後更新時間: ${new Date(time).toLocaleDateString()} ${new Date(time).toLocaleTimeString()}`
+        return;
+      }
+      updateDataFromBackend()
+
+    })
+    main()
+    document.querySelector('div.leaflet-control-container').style.display = 'none'
+  </script>
+</body>
+
+</html>
