@@ -261,6 +261,17 @@
 
       const update = () => {
 
+        let isNull = type === 'school' ? schoolDayoffData === null : workDayoffData === null;
+        if (isNull) {
+          GeoJsonCounty.eachLayer((layer) => {
+            return layer.setStyle({
+              color: 'gray',
+              fillColor: 'gray',
+              fill: true
+            })
+          })
+          return;
+        }
         let TyphoonCounties = type === 'school' ? schoolDayoffData.TyphoonCounties : workDayoffData.TyphoonCounties
         let TyphoonTowns = type === 'school' ? schoolDayoffData.TyphoonTowns : workDayoffData.TyphoonTowns
         let TyphoonPlaces = type === 'school' ? schoolDayoffData.TyphoonPlaces : workDayoffData.TyphoonPlaces
