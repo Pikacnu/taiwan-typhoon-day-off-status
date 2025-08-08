@@ -329,12 +329,11 @@
 
       let type = 'work'
 
-      let userPosition = null
+      let UserLocation = null;
       //user Position Mark
-
       if ("geolocation" in navigator) {
-        navigator.geolocation.getCurrentPosition((position) => {
-          const marker = L.marker([position.coords.latitude, position.coords.longitude], {
+        if (UserLocation) {
+          L.marker(UserLocation, {
             icon: L.divIcon({
               html: `<div style="width:100%;height:100%;background-color:purple;border-radius:5px"></div>`,
               className: 'marker',
@@ -342,9 +341,21 @@
               iconAnchor: [10, 10],
               popupAnchor: [-5, -10]
             })
-          }).addTo(map).bindPopup('你的位置').openPopup()
-          userPosition = position
-        })
+          }).addTo(PointLayer).bindPopup('你的位置').openPopup()
+        } else {
+          navigator.geolocation.getCurrentPosition((position) => {
+            UserLocation = [position.coords.latitude, position.coords.longitude];
+            L.marker(UserLocation, {
+              icon: L.divIcon({
+                html: `<div style="width:100%;height:100%;background-color:purple;border-radius:5px"></div>`,
+                className: 'marker',
+                iconSize: [10, 10],
+                iconAnchor: [10, 10],
+                popupAnchor: [-5, -10]
+              })
+            }).addTo(PointLayer).bindPopup('你的位置').openPopup()
+          })
+        }
       }
 
       const menuZoomIn = (countyInfo) => {
@@ -452,6 +463,18 @@
       }
 
       const update = () => {
+
+        let isNull = type === 'school' ? schoolDayoffData === null : workDayoffData === null;
+        if (isNull) {
+          GeoJsonCounty.eachLayer((layer) => {
+            return layer.setStyle({
+              color: 'gray',
+              fillColor: 'gray',
+              fill: true
+            })
+          })
+          return;
+        }
         let TyphoonCounties = type === 'school' ? schoolDayoffData.TyphoonCounties : workDayoffData.TyphoonCounties
         let TyphoonTowns = type === 'school' ? schoolDayoffData.TyphoonTowns : workDayoffData.TyphoonTowns
         let TyphoonPlaces = type === 'school' ? schoolDayoffData.TyphoonPlaces : workDayoffData.TyphoonPlaces

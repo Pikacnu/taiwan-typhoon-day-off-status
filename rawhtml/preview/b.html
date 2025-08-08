@@ -234,12 +234,11 @@
 
       let type = 'work'
 
-      let userPosition = null
+      let UserLocation = null;
       //user Position Mark
-
       if ("geolocation" in navigator) {
-        navigator.geolocation.getCurrentPosition((position) => {
-          const marker = L.marker([position.coords.latitude, position.coords.longitude], {
+        if (UserLocation) {
+          L.marker(UserLocation, {
             icon: L.divIcon({
               html: `<div style="width:100%;height:100%;background-color:purple;border-radius:5px"></div>`,
               className: 'marker',
@@ -247,16 +246,45 @@
               iconAnchor: [10, 10],
               popupAnchor: [-5, -10]
             })
-          }).addTo(map).bindPopup('你的位置').openPopup()
-          userPosition = position
-        })
+          }).addTo(PointLayer).bindPopup('你的位置').openPopup()
+        } else {
+          navigator.geolocation.getCurrentPosition((position) => {
+            UserLocation = [position.coords.latitude, position.coords.longitude];
+            L.marker(UserLocation, {
+              icon: L.divIcon({
+                html: `<div style="width:100%;height:100%;background-color:purple;border-radius:5px"></div>`,
+                className: 'marker',
+                iconSize: [10, 10],
+                iconAnchor: [10, 10],
+                popupAnchor: [-5, -10]
+              })
+            }).addTo(PointLayer).bindPopup('你的位置').openPopup()
+          })
+        }
+      }
+
+      const getDataFn = (obj, name) => {
+        if (obj && name in obj) {
+          return obj[name]
+        }
+        return null
       }
 
       const update = () => {
-
-        let TyphoonCounties = type === 'school' ? schoolDayoffData.TyphoonCounties : workDayoffData.TyphoonCounties
-        let TyphoonTowns = type === 'school' ? schoolDayoffData.TyphoonTowns : workDayoffData.TyphoonTowns
-        let TyphoonPlaces = type === 'school' ? schoolDayoffData.TyphoonPlaces : workDayoffData.TyphoonPlaces
+        let isNull = type === 'school' ? schoolDayoffData === null : workDayoffData === null;
+        if (isNull) {
+          GeoJsonCounty.eachLayer((layer) => {
+            return layer.setStyle({
+              color: 'gray',
+              fillColor: 'gray',
+              fill: true
+            })
+          })
+          return;
+        }
+        let TyphoonCounties = type === 'school' ? getDataFn(schoolDayoffData, 'TyphoonCounties') : getDataFn(workDayoffData, 'TyphoonCounties')
+        let TyphoonTowns = type === 'school' ? getDataFn(schoolDayoffData, 'TyphoonTowns') : getDataFn(workDayoffData, 'TyphoonTowns')
+        let TyphoonPlaces = type === 'school' ? getDataFn(schoolDayoffData, 'TyphoonPlaces') : getDataFn(workDayoffData, 'TyphoonPlaces')
         PointLayer.clearLayers()
         console.log('----update----')
         console.log(TyphoonCounties)
@@ -300,6 +328,8 @@
             fill: true
           })
         })
+
+
 
         GeoJsonCounty.eachLayer((layer) => {
           const countyDayOffData = TyphoonCounties.find((county) => county.county === layer.feature.properties.COUNTYNAME)
