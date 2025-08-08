@@ -352,12 +352,11 @@
       }
       const sleep = (time) => new Promise((resolve) => setTimeout(resolve, 1000 * time));
       const updateDataFromBackend = (() => {
-        let time = Infinity
-        if (time - new Date().getTime() < 1000 * 30)
-          return () => { };
-        time = new Date().getTime()
+        let lastUpdateTime = Infinity
         lastupdate.innerHTML = '資料更新中...'
         return async () => {
+          if (lastUpdateTime - new Date().getTime() < 1000 * 30)
+            return lastUpdateTime = new Date().getTime()
           const req = (await (await fetch(`${window.location.origin}/api/typhoon`)).json())
           const data = req.data
           const isTyphoon = req.typhoon

@@ -56,6 +56,12 @@
       <p>{{noDayOff}}</p>
     </div>
   </div>
+  <button
+    style="position: absolute; bottom: 0; right: 0; z-index: 9999; background-color: white; border: none; padding: 0.5rem; border-radius: 5px;"
+    id="demo">
+    <span style="color: black;">{{demo}}</span>
+
+  </button>
   <script>
     let map = L.map('map').setView([23.97565, 120.9738819], 8);
     let TyphoonCounties = []
@@ -64,6 +70,8 @@
     let lastupdate = document.getElementById('lastupdate');
     let showInfo = document.getElementById('show-info');
     let toggle = document.getElementById('toggle');
+    let demo = document.getElementById('demo');
+    let isDemo = false;
 
     let ColorMap = new Map([
       ['tomorrow', 'yellow'],
@@ -178,12 +186,48 @@
       }
       const sleep = (time) => new Promise((resolve) => setTimeout(resolve, 1000 * time));
       const updateDataFromBackend = (() => {
-        let time = Infinity
-        if (time - new Date().getTime() < 1000 * 60)
-          return () => { };
-        time = new Date().getTime()
-        lastupdate.innerHTML = '{{lastUpdate}}'
+        let lastUpdateTime = Infinity;
         return async () => {
+          if (isDemo) {
+            const taiwanCounties = [
+              "台北市",
+              "新北市",
+              "桃園市",
+              "台中市",
+              "台南市",
+              "高雄市",
+              "基隆市",
+              "新竹市",
+              "嘉義市",
+              "新竹縣",
+              "苗栗縣",
+              "彰化縣",
+              "南投縣",
+              "雲林縣",
+              "嘉義縣",
+              "屏東縣",
+              "宜蘭縣",
+              "花蓮縣",
+              "台東縣",
+              "澎湖縣",
+              "金門縣",
+              "連江縣"
+            ].sort(() => Math.random() - 0.5);
+            TyphoonCounties = Array.from({ length: 10 }, (_, i) => ({
+              county: taiwanCounties.shift(),
+              type: ['tomorrow', 'today', 'both', 'false'][Math.floor(Math.random() * 4)]
+            }));
+            TyphoonTowns = []
+            TyphoonPlaces = []
+            update();
+            return;
+          }
+
+          if (lastUpdateTime - new Date().getTime() < 1000 * 60) {
+            return () => { };
+          }
+          lastUpdateTime = new Date().getTime();
+
           const req = (await (await fetch(`${window.location.origin}/api/typhoon`)).json())
           const data = req.data
           const isTyphoon = req.typhoon
@@ -220,11 +264,23 @@
 
           }
           update()
-          lastupdate.innerHTML = `{{lastUpdateTime}}: ${new Date(time).toLocaleDateString()} ${new Date(time).toLocaleTimeString()}`
+          lastupdate.innerHTML = ` {{lastUpdate}} : ${new Date(time).toLocaleDateString()} ${new Date(time).toLocaleTimeString()}`
           console.log('update')
           return;
         }
       })();
+
+      demo.addEventListener('click', () => {
+        isDemo = !isDemo
+        updateDataFromBackend()
+        if (isDemo) {
+          demo.innerHTML = '{{demoStop}}'
+          demo.style.backgroundColor = 'red'
+        } else {
+          demo.innerHTML = '{{demo}}'
+          demo.style.backgroundColor = 'white'
+        }
+      })
 
       toggle.addEventListener('change', () => {
         if (toggle.checked) {
