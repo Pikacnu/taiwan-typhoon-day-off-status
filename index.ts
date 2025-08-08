@@ -205,6 +205,8 @@ async function getDataFromOfficialSite(): Promise<TyphoonData> {
   return { typhoon: true, data: row };
 }
 
+logger.log('Preparing cache function...');
+
 let cacheFunction = await (async (): Promise<
   () => Promise<TyphoonDataCache>
 > => {
@@ -233,7 +235,7 @@ const Port = process.env.PORT || 3000;
 const Host = process.env.HOST || 'localhost';
 
 logger.log('Server is starting...');
-logger.log(`Server is running at http://localhost:${Port}/`);
+logger.log(`Server is running at http://${Host}:${Port}/`);
 
 const htmlScanner = new Glob('*.html');
 const htmlFilesPath = './rawhtml/preview';
@@ -246,6 +248,17 @@ for await (const file of htmlScanner.scan(htmlFilesPath)) {
     isCacheFile
       ? await Bun.file(`${htmlFilesPath}/${file}`).text()
       : htmlFilesPath + `/${file}`,
+  );
+}
+
+const i18nScanner = new Glob('*.json');
+const i18nFilesPath = './i18n';
+const i18nFiles: Map<string, Record<string, string>> = new Map();
+
+for await (const file of i18nScanner.scan(i18nFilesPath)) {
+  i18nFiles.set(
+    file.split('.').shift()!,
+    await Bun.file(`${i18nFilesPath}/${file}`).json(),
   );
 }
 
@@ -265,14 +278,28 @@ const server = Bun.serve({
         country ? country : ''
       } ${ip ? ip : ''}`,
     );
-    if (url.pathname === '/') {
-      return new Response(await readFile('./rawhtml/default.html'), {
-        headers: {
-          'content-type': 'text/html',
-          'Cache-Control': 'no-store, max-age:0',
-        },
-        status: 200,
+    const targetLanguage =
+      req.headers.get('accept-language')?.split(',')[0] || 'en';
+    const i18nFile = i18nFiles.get(targetLanguage);
+
+    const processFile = (text: string) => {
+      if (!i18nFile) return text;
+      return text.replaceAll(/\{\{(\S+)\}\}/gm, (_, key: string) => {
+        return i18nFile[key] || key;
       });
+    };
+
+    if (url.pathname === '/') {
+      return new Response(
+        processFile(await Bun.file('./rawhtml/default.html').text()),
+        {
+          headers: {
+            'content-type': 'text/html',
+            'Cache-Control': 'no-store, max-age:0',
+          },
+          status: 200,
+        },
+      );
     }
 
     const fileInMap = htmlFiles.get(
@@ -313,7 +340,7 @@ const server = Bun.serve({
     }
 
     if (url.pathname === '/api/geoJson/town') {
-      return new Response(await readFile('./tw_town.json'), {
+      return new Response(Bun.file('./tw_town.json'), {
         headers: {
           'Access-Control-Allow-Origin': '*',
           'content-type': 'application/json',
@@ -323,7 +350,7 @@ const server = Bun.serve({
     }
 
     if (url.pathname === '/api/geoJson/county') {
-      return new Response(await readFile('./tw_county.json'), {
+      return new Response(Bun.file('./tw_county.json'), {
         headers: {
           'Access-Control-Allow-Origin': '*',
           'content-type': 'application/json',

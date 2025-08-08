@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-tw">
 
 <head>
   <meta charset="UTF-8">
@@ -12,6 +12,10 @@
   <meta property="og:description" content="A map of Taiwan to show where is dayoff">
   <meta property="og:title" content="Taiwan Typhoon Day Off Status">
   <style>
+    body {
+      font-family: Arial, sans-serif;
+    }
+
     .marker {
       border-radius: 5px;
     }
@@ -27,29 +31,29 @@
     <div
       style="display: flex; flex-direction: row;align-items: center;justify-content: center;border-radius: 20px;background-color: gray;">
       <input type="checkbox" name="Toggle" id="toggle" hidden>
-      <label for="toggle" style="cursor: pointer;user-select: none;">切換顯示</label>
+      <label for="toggle" style="cursor: pointer;user-select: none;">{{changeDisplay}}</label>
     </div>
-    <p id="show-info">目前顯示 : 上班</p>
+    <p id="show-info">{{currentDisplayed}} : {{work}}</p>
     <div style="display: flex;position: relative;align-items: center;">
       <div style="padding: 0.5rem;background-color: purple;"></div>
-      <p>你的位置</p>
+      <p>{{yourPosition}}</p>
     </div>
     <div style="display: flex;"></div>
     <div style="display: flex;position: relative;align-items: center;">
       <div style="padding: 0.5rem;background-color: yellow;"></div>
-      <p>明日颱風假</p>
+      <p>{{tomorrowDayOff}}</p>
     </div>
     <div style="display: flex;position: relative;align-items: center;">
       <div style="padding: 0.5rem;background-color: blue;"></div>
-      <p>今日颱風假</p>
+      <p>{{todayDayOff}}</p>
     </div>
     <div style="display: flex;position: relative;align-items: center;">
       <div style="padding: 0.5rem;background-color: red;"></div>
-      <p>兩天都放</p>
+      <p>{{bothDayOff}}</p>
     </div>
     <div style="display: flex;position: relative;align-items: center;">
       <div style="padding: 0.5rem;background-color: gray;"></div>
-      <p>沒有放假</p>
+      <p>{{noDayOff}}</p>
     </div>
   </div>
   <script>
@@ -109,7 +113,7 @@
                 iconAnchor: [10, 10],
                 popupAnchor: [-5, -10]
               })
-            }).addTo(PointLayer).bindPopup('你的位置').openPopup()
+            }).addTo(PointLayer).bindPopup('{{yourPosition}}').openPopup()
           } else {
             navigator.geolocation.getCurrentPosition((position) => {
               UserLocation = [position.coords.latitude, position.coords.longitude];
@@ -121,7 +125,7 @@
                   iconAnchor: [10, 10],
                   popupAnchor: [-5, -10]
                 })
-              }).addTo(PointLayer).bindPopup('你的位置').openPopup()
+              }).addTo(PointLayer).bindPopup('{{yourPosition}}').openPopup()
             })
           }
         }
@@ -175,10 +179,10 @@
       const sleep = (time) => new Promise((resolve) => setTimeout(resolve, 1000 * time));
       const updateDataFromBackend = (() => {
         let time = Infinity
-        if (time - new Date().getTime() < 1000 * 30)
+        if (time - new Date().getTime() < 1000 * 60)
           return () => { };
         time = new Date().getTime()
-        lastupdate.innerHTML = '資料更新中...'
+        lastupdate.innerHTML = '{{lastUpdate}}'
         return async () => {
           const req = (await (await fetch(`${window.location.origin}/api/typhoon`)).json())
           const data = req.data
@@ -216,7 +220,7 @@
 
           }
           update()
-          lastupdate.innerHTML = `最後更新時間: ${new Date(time).toLocaleDateString()} ${new Date(time).toLocaleTimeString()}`
+          lastupdate.innerHTML = `{{lastUpdateTime}}: ${new Date(time).toLocaleDateString()} ${new Date(time).toLocaleTimeString()}`
           console.log('update')
           return;
         }
@@ -225,10 +229,10 @@
       toggle.addEventListener('change', () => {
         if (toggle.checked) {
           type = 'school'
-          showInfo.innerHTML = '目前顯示 : 上課'
+          showInfo.innerHTML = '{{currentDisplayed}} : {{school}}'
         } else {
           type = 'work'
-          showInfo.innerHTML = '目前顯示 : 上班'
+          showInfo.innerHTML = '{{currentDisplayed}} : {{work}}'
         }
         updateDataFromBackend()
       })
