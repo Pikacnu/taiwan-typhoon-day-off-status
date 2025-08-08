@@ -230,6 +230,7 @@ let cacheFunction = await (async (): Promise<
 })();
 
 const Port = process.env.PORT || 3000;
+const Host = process.env.HOST || 'localhost';
 
 logger.log('Server is starting...');
 logger.log(`Server is running at http://localhost:${Port}/`);
@@ -250,7 +251,7 @@ for await (const file of htmlScanner.scan(htmlFilesPath)) {
 
 const server = Bun.serve({
   port: Port,
-  hostname: 'localhost',
+  hostname: Host,
   async fetch(req: Request) {
     let url = new URL(req.url);
     //cloudflare ip
