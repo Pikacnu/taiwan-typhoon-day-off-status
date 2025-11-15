@@ -25,6 +25,18 @@
 <body style="margin: 0;padding: 0">
   <div id="map" style="height: 100dvh; overflow:hidden;background-color: rgb(63, 63, 63);"></div>
   <p id="lastupdate" style="position: absolute; font-size: large; top:0;right: 2rem;color:white;z-index:9999;"></p>
+
+  <!-- 颱風資料監測面板 -->
+  <div id="typhoon-debug"
+    style="position: absolute; top: 10px; left: 10px; background-color: rgba(53, 53, 53, 0.8); padding: 0.75rem; border-radius: 15px; max-width: 300px; max-height: 80vh; overflow-y: auto; z-index: 10000; color: white;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+      <strong style="font-size: 14px;">🌀 颱風資料監控</strong>
+      <button id="toggle-debug"
+        style="cursor: pointer; padding: 5px 10px; border: none; background-color: gray; color: white; border-radius: 20px; user-select: none;">隱藏</button>
+    </div>
+    <div id="typhoon-info" style="white-space: pre-wrap; word-break: break-word; font-size: 14px;">載入中...</div>
+  </div>
+
   <div
     style="display:flex;flex-direction:column;position: absolute;bottom: 0;margin: 0.5rem;outline:solid rgb(20, 20, 20);;background-color: rgba(53, 53, 53,0.8);border-radius: 15px;;padding: 0.75rem;color: white;z-index:9999;">
 
@@ -56,10 +68,6 @@
       <p>{{noDayOff}}</p>
     </div>
   </div>
-  <button
-    style="position: absolute; bottom: 0; right: 0; z-index: 9999; background-color: white; border: none; padding: 0.5rem; border-radius: 5px;"
-    id="demo">
-    <span style="color: black;">{{demo}}</span>
 
   </button>
   <script>
@@ -70,8 +78,6 @@
     let lastupdate = document.getElementById('lastupdate');
     let showInfo = document.getElementById('show-info');
     let toggle = document.getElementById('toggle');
-    let demo = document.getElementById('demo');
-    let isDemo = false;
 
     let ColorMap = new Map([
       ['tomorrow', 'yellow'],
@@ -188,41 +194,6 @@
       const updateDataFromBackend = (() => {
         let lastUpdateTime = Infinity;
         return async () => {
-          if (isDemo) {
-            const taiwanCounties = [
-              "台北市",
-              "新北市",
-              "桃園市",
-              "台中市",
-              "台南市",
-              "高雄市",
-              "基隆市",
-              "新竹市",
-              "嘉義市",
-              "新竹縣",
-              "苗栗縣",
-              "彰化縣",
-              "南投縣",
-              "雲林縣",
-              "嘉義縣",
-              "屏東縣",
-              "宜蘭縣",
-              "花蓮縣",
-              "台東縣",
-              "澎湖縣",
-              "金門縣",
-              "連江縣"
-            ].sort(() => Math.random() - 0.5);
-            TyphoonCounties = Array.from({ length: 10 }, (_, i) => ({
-              county: taiwanCounties.shift(),
-              type: ['tomorrow', 'today', 'both', 'false'][Math.floor(Math.random() * 4)]
-            }));
-            TyphoonTowns = []
-            TyphoonPlaces = []
-            update();
-            return;
-          }
-
           if (lastUpdateTime - new Date().getTime() < 1000 * 60) {
             return () => { };
           }
@@ -270,17 +241,7 @@
         }
       })();
 
-      demo.addEventListener('click', () => {
-        isDemo = !isDemo
-        updateDataFromBackend()
-        if (isDemo) {
-          demo.innerHTML = '{{demoStop}}'
-          demo.style.backgroundColor = 'red'
-        } else {
-          demo.innerHTML = '{{demo}}'
-          demo.style.backgroundColor = 'white'
-        }
-      })
+
 
       toggle.addEventListener('change', () => {
         if (toggle.checked) {
@@ -304,6 +265,321 @@
     })
     main()
     document.querySelector('div.leaflet-control-container').style.display = 'none'
+
+    // 颱風路徑顯示功能 - 完全打包的實作
+    const initializeTyphoonPathDisplay = (() => {
+      // 所有變數和函數都封裝在這個 IIFE 中
+      let typhoonLayers = L.layerGroup();
+      let isInitialized = false;
+      const debugPanel = document.getElementById('typhoon-info');
+      const toggleBtn = document.getElementById('toggle-debug');
+      const debugContainer = document.getElementById('typhoon-debug');
+
+      // 切換調試面板顯示/隱藏
+      toggleBtn.addEventListener('click', () => {
+        const infoDiv = document.getElementById('typhoon-info');
+        if (infoDiv.style.display === 'none') {
+          infoDiv.style.display = 'block';
+          toggleBtn.textContent = '隱藏';
+        } else {
+          infoDiv.style.display = 'none';
+          toggleBtn.textContent = '顯示';
+        }
+      });
+
+      // 更新調試資訊
+      const updateDebugInfo = (info) => {
+        debugPanel.innerHTML = info;
+      };
+
+      // 方向角度轉換
+      const directionToDegrees = (dir) => {
+        const directions = {
+          'N': 0, 'NNE': 22.5, 'NE': 45, 'ENE': 67.5,
+          'E': 90, 'ESE': 112.5, 'SE': 135, 'SSE': 157.5,
+          'S': 180, 'SSW': 202.5, 'SW': 225, 'WSW': 247.5,
+          'W': 270, 'WNW': 292.5, 'NW': 315, 'NNW': 337.5
+        };
+        return directions[dir] || 0;
+      };
+
+      // 根據風速判斷颱風強度並返回對應的 SVG 圖示
+      const getTyphoonIcon = (windSpeed) => {
+        // 熱帶性低氣壓: < 17.2 m/s
+        // 輕度颱風: 17.2-32.6 m/s
+        // 中度颱風: 32.7-50.9 m/s
+        // 強烈颱風: >= 51.0 m/s
+
+        if (windSpeed < 17.2) {
+          // 熱帶性低氣壓
+          return `data:image/svg+xml,${encodeURIComponent('<svg width="48" height="46" viewBox="0 0 48 46" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="23" r="12" fill="#FF0000"/><path d="M12.3183 20.3139C12.0509 21.2427 12.587 22.2124 13.5158 22.4798C14.4446 22.7472 15.4143 22.2111 15.6817 21.2823L14 20.7981L12.3183 20.3139ZM20.5183 4.48417L21.0024 2.80249L17.6391 1.8341L17.1549 3.51578L18.8366 3.99998L20.5183 4.48417ZM14 20.7981L15.6817 21.2823L20.5183 4.48417L18.8366 3.99998L17.1549 3.51578L12.3183 20.3139L14 20.7981Z" fill="#FF0000"/><path d="M27.3183 42.3139L26.8341 43.9956L30.1975 44.964L30.6817 43.2823L29 42.7981L27.3183 42.3139ZM35.5183 26.4842C35.7857 25.5554 35.2495 24.5857 34.3208 24.3183C33.392 24.0509 32.4223 24.587 32.1549 25.5158L33.8366 26L35.5183 26.4842ZM29 42.7981L30.6817 43.2823L35.5183 26.4842L33.8366 26L32.1549 25.5158L27.3183 42.3139L29 42.7981Z" fill="#FF0000"/></svg>')}`;
+        } else if (windSpeed < 32.7) {
+          // 輕度颱風
+          return `data:image/svg+xml,${encodeURIComponent('<svg width="48" height="46" viewBox="0 0 48 46" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M36 23C36 29.6274 30.6274 35 24 35C17.3726 35 12 29.6274 12 23C12 16.3726 17.3726 11 24 11C30.6274 11 36 16.3726 36 23ZM16.2406 23C16.2406 27.2854 19.7146 30.7594 24 30.7594C28.2854 30.7594 31.7594 27.2854 31.7594 23C31.7594 18.7146 28.2854 15.2406 24 15.2406C19.7146 15.2406 16.2406 18.7146 16.2406 23Z" fill="#FF0000"/><path d="M12.3183 20.3139C12.0509 21.2427 12.587 22.2124 13.5158 22.4798C14.4446 22.7472 15.4143 22.2111 15.6817 21.2823L14 20.7981L12.3183 20.3139ZM20.5183 4.48417L21.0024 2.80249L17.6391 1.8341L17.1549 3.51578L18.8366 3.99998L20.5183 4.48417ZM14 20.7981L15.6817 21.2823L20.5183 4.48417L18.8366 3.99998L17.1549 3.51578L12.3183 20.3139L14 20.7981Z" fill="#FF0000"/><path d="M27.3183 42.3139L26.8341 43.9956L30.1975 44.964L30.6817 43.2823L29 42.7981L27.3183 42.3139ZM35.5183 26.4842C35.7857 25.5554 35.2495 24.5857 34.3208 24.3183C33.392 24.0509 32.4223 24.587 32.1549 25.5158L33.8366 26L35.5183 26.4842ZM29 42.7981L30.6817 43.2823L35.5183 26.4842L33.8366 26L32.1549 25.5158L27.3183 42.3139L29 42.7981Z" fill="#FF0000"/></svg>')}`;
+        } else {
+          // 中度/強烈颱風
+          return `data:image/svg+xml,${encodeURIComponent('<svg width="48" height="46" viewBox="0 0 48 46" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M42 23C42 32.9411 33.9411 41 24 41C14.0589 41 6 32.9411 6 23C6 13.0589 14.0589 5 24 5C33.9411 5 42 13.0589 42 23ZM11.5766 23C11.5766 29.8612 17.1388 35.4234 24 35.4234C30.8612 35.4234 36.4234 29.8612 36.4234 23C36.4234 16.1388 30.8612 10.5766 24 10.5766C17.1388 10.5766 11.5766 16.1388 11.5766 23Z" fill="#FF0000"/><path d="M11.7626 31.7626L10.5251 33L13 35.4749L14.2374 34.2374L13 33L11.7626 31.7626ZM35.2374 13.2374C35.9209 12.554 35.9209 11.446 35.2374 10.7626C34.554 10.0791 33.446 10.0791 32.7626 10.7626L34 12L35.2374 13.2374ZM13 33L14.2374 34.2374L35.2374 13.2374L34 12L32.7626 10.7626L11.7626 31.7626L13 33Z" fill="#FF0000"/><path d="M35.2374 31.7626L36.4749 33L34 35.4749L32.7626 34.2374L34 33L35.2374 31.7626ZM11.7626 13.2374C11.0791 12.554 11.0791 11.446 11.7626 10.7626C12.446 10.0791 13.554 10.0791 14.2374 10.7626L13 12L11.7626 13.2374ZM34 33L32.7626 34.2374L11.7626 13.2374L13 12L14.2374 10.7626L35.2374 31.7626L34 33Z" fill="#FF0000"/></svg>')}`;
+        }
+      };
+
+      // 座標字串轉換為 [lat, lng]
+      // API 格式: "經度,緯度" (例如: "147.4,8.3")
+      // Leaflet 需要: [緯度, 經度]
+      const parseCoordinate = (coordStr) => {
+        const [lng, lat] = coordStr.split(',').map(v => parseFloat(v));
+        return [lat, lng]; // 返回 [緯度, 經度]
+      };
+
+      // 繪製風圈
+      const drawWindCircle = (center, windCircle, color, opacity) => {
+        if (!windCircle || !windCircle.radius) return [];
+
+        const layers = [];
+        const radius = parseFloat(windCircle.radius) * 1852; // 海里轉公尺
+
+        if (windCircle.quadrantRadii && windCircle.quadrantRadii.radius) {
+          // 繪製四象限風圈
+          const quadrants = windCircle.quadrantRadii.radius;
+          quadrants.forEach(q => {
+            const qRadius = parseFloat(q.value) * 1852;
+            const angle = directionToDegrees(q.dir);
+
+            // 創建扇形 (簡化版,使用圓形代替)
+            const circle = L.circle(center, {
+              radius: qRadius,
+              color: color,
+              fillColor: color,
+              fillOpacity: opacity * 0.3,
+              weight: 1,
+              opacity: opacity
+            });
+            layers.push(circle);
+          });
+        } else {
+          // 繪製完整圓形風圈
+          const circle = L.circle(center, {
+            radius: radius,
+            color: color,
+            fillColor: color,
+            fillOpacity: opacity * 0.3,
+            weight: 2,
+            opacity: opacity
+          });
+          layers.push(circle);
+        }
+
+        return layers;
+      };
+
+      // 繪製颱風路徑
+      const drawTyphoonPath = async () => {
+        try {
+          // 清除舊的圖層
+          typhoonLayers.clearLayers();
+
+          // 獲取颱風警報資料
+          console.log('🌀 開始獲取颱風警報資料...');
+          updateDebugInfo('🔄 正在獲取颱風資料...');
+
+          const response = await fetch(`${window.location.origin}/api/typhoon/warning`);
+          console.log('📡 API 回應狀態:', response.status);
+
+          if (!response.ok) {
+            const errorMsg = `⚠️ 無法取得颱風警報資料\n狀態碼: ${response.status}`;
+            console.warn(errorMsg);
+            updateDebugInfo(errorMsg);
+            return;
+          }
+
+          const data = await response.json();
+          console.log('📦 收到的資料:', data);
+
+          if (data.error) {
+            const errorMsg = `❌ API 錯誤:\n${data.error}`;
+            console.error(errorMsg);
+            updateDebugInfo(errorMsg);
+            return;
+          }
+
+          // 正確的資料結構路徑
+          const typhoons = data.records?.tropicalCyclones?.tropicalCyclone || [];
+
+          if (typhoons.length === 0) {
+            const infoMsg = 'ℹ️ 目前無颱風警報資料\n(可能沒有颱風或超出查詢時間範圍)';
+            console.log(infoMsg);
+            updateDebugInfo(infoMsg);
+            return;
+          }
+
+          console.log(`✅ 找到 ${typhoons.length} 個颱風資料`);
+
+          let debugInfo = `✅ 找到 ${typhoons.length} 個颱風\n`;
+
+          // 處理每個颱風
+          typhoons.forEach((typhoonInfo, typhoonIndex) => {
+            const typhoonName = typhoonInfo.cwaTyphoonName || `颱風 ${typhoonInfo.cwaTdNo}`;
+
+            debugInfo += `\n颱風: ${typhoonName} (${typhoonInfo.typhoonName})\n`;
+
+            // 收集所有路徑點
+            const analysisPoints = [];
+            const forecastPoints = [];
+
+            // 處理分析資料(實際路徑)
+            if (typhoonInfo.analysisData && typhoonInfo.analysisData.fix) {
+              typhoonInfo.analysisData.fix.forEach((fix, idx) => {
+                const coord = parseCoordinate(fix.coordinate);
+                analysisPoints.push({
+                  coord: coord,
+                  time: new Date(fix.fixTime),
+                  windSpeed: parseFloat(fix.maxWindSpeed),
+                  pressure: parseFloat(fix.pressure),
+                  movingDir: fix.movingDirection,
+                  circle15: fix.circleOf15Ms,
+                  circle25: fix.circleOf25Ms
+                });
+              });
+            }
+
+            // 處理預報資料(預測路徑)
+            if (typhoonInfo.forecastData && typhoonInfo.forecastData.fix) {
+              typhoonInfo.forecastData.fix.forEach((fix, idx) => {
+                const coord = parseCoordinate(fix.coordinate);
+                forecastPoints.push({
+                  coord: coord,
+                  tau: parseInt(fix.tau),
+                  windSpeed: fix.maxWindSpeed ? parseFloat(fix.maxWindSpeed) : null,
+                  pressure: parseFloat(fix.pressure),
+                  radius70: parseFloat(fix.radiusOf70PercentProbability) * 1852
+                });
+              });
+            }
+
+            // 繪製實際路徑
+            if (analysisPoints.length > 0) {
+              const pathCoords = analysisPoints.map(p => p.coord);
+              const pathLine = L.polyline(pathCoords, {
+                color: '#FF0000',
+                weight: 3,
+                opacity: 0.8
+              }).bindPopup(`${typhoonName} - 實際路徑`);
+              typhoonLayers.addLayer(pathLine);
+
+              // 繪製路徑點和風圈
+              analysisPoints.forEach((point, idx) => {
+                // 使用自定義圖示標記
+                const icon = L.icon({
+                  iconUrl: getTyphoonIcon(point.windSpeed),
+                  iconSize: [24, 24],
+                  iconAnchor: [12, 12],
+                  popupAnchor: [0, -12]
+                });
+
+                const marker = L.marker(point.coord, { icon: icon })
+                  .bindPopup(`
+                    <strong>${typhoonName}</strong><br>
+                    時間: ${point.time.toLocaleString('zh-TW')}<br>
+                    風速: ${point.windSpeed} m/s<br>
+                    氣壓: ${point.pressure} hPa<br>
+                    移動方向: ${point.movingDir}
+                  `);
+                typhoonLayers.addLayer(marker);
+
+                // 只在最新位置繪製風圈
+                if (idx === analysisPoints.length - 1) {
+                  // 7級風圈 (15 m/s)
+                  if (point.circle15) {
+                    const circles15 = drawWindCircle(point.coord, point.circle15, '#FFFF00', 0.6);
+                    circles15.forEach(c => typhoonLayers.addLayer(c));
+                  }
+
+                  // 10級風圈 (25 m/s)
+                  if (point.circle25) {
+                    const circles25 = drawWindCircle(point.coord, point.circle25, '#FF6600', 0.8);
+                    circles25.forEach(c => typhoonLayers.addLayer(c));
+                  }
+                }
+              });
+            }
+
+            // 繪製預測路徑 - 連接最後一個分析點
+            if (forecastPoints.length > 0) {
+              // 如果有分析資料,將預測路徑與最後一個分析點連接
+              const forecastCoords = forecastPoints.map(p => p.coord);
+              if (analysisPoints.length > 0) {
+                const lastAnalysisPoint = analysisPoints[analysisPoints.length - 1].coord;
+                forecastCoords.unshift(lastAnalysisPoint); // 在預測路徑前加入最後一個分析點
+              }
+
+              const forecastLine = L.polyline(forecastCoords, {
+                color: '#0000FF',
+                weight: 2,
+                opacity: 0.6,
+                dashArray: '10, 10'
+              }).bindPopup(`${typhoonName} - 預測路徑`);
+              typhoonLayers.addLayer(forecastLine);
+
+              // 繪製預測點和不確定性圓
+              forecastPoints.forEach((point, idx) => {
+                const marker = L.circleMarker(point.coord, {
+                  radius: 5,
+                  fillColor: '#0000FF',
+                  color: '#FFFFFF',
+                  weight: 2,
+                  opacity: 0.8,
+                  fillOpacity: 0.6
+                }).bindPopup(`
+                  <strong>${typhoonName} - 預測</strong><br>
+                  預報時距: ${point.tau} 小時<br>
+                  ${point.windSpeed ? `風速: ${point.windSpeed} m/s<br>` : ''}
+                  氣壓: ${point.pressure} hPa
+                `);
+                typhoonLayers.addLayer(marker);
+
+                // 70%機率圓
+                if (point.radius70 > 0) {
+                  const uncertainty = L.circle(point.coord, {
+                    radius: point.radius70,
+                    color: '#0000FF',
+                    fillColor: '#0000FF',
+                    fillOpacity: 0.1,
+                    weight: 1,
+                    opacity: 0.3,
+                    dashArray: '5, 5'
+                  });
+                  typhoonLayers.addLayer(uncertainty);
+                }
+              });
+            }
+
+            debugInfo += '\n';
+          });
+
+          // 更新調試面板
+          updateDebugInfo(debugInfo);
+
+        } catch (error) {
+          const errorMsg = `❌ 颱風路徑顯示錯誤:\n${error.message}\n\n${error.stack}`;
+          console.error('颱風路徑顯示錯誤:', error);
+          updateDebugInfo(errorMsg);
+        }
+      };
+
+      // 初始化並返回控制函數
+      return async () => {
+        if (!isInitialized) {
+          typhoonLayers.addTo(map);
+          isInitialized = true;
+        }
+        await drawTyphoonPath();
+
+        // 每5分鐘更新一次颱風路徑
+        setInterval(drawTyphoonPath, 5 * 60 * 1000);
+      };
+    })();
+
+    // 啟動颱風路徑顯示
+    initializeTyphoonPathDisplay();
   </script>
 </body>
 
