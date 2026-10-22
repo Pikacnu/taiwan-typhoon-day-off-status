@@ -9,7 +9,12 @@ import type {
   School,
   TyphoonDataCache,
 } from './types';
-import { logger, schoolNameProcess, isSchool } from './utils';
+import {
+  logger,
+  schoolNameProcess,
+  isSchool,
+  findSchoolByName,
+} from './utils';
 import { getTyphoonWarningData, getCacheInfo } from './typhoonDetailData';
 
 async function getDataFromOfficialSite(): Promise<TyphoonData> {
@@ -84,7 +89,7 @@ async function getDataFromOfficialSite(): Promise<TyphoonData> {
     const placeData: Place[] = info
       .filter((value) => value !== '' && !value.includes('尚未列入警戒區'))
       .filter((value) => !value.match(/^[今明]/gm))
-      .map((value) => {
+      .flatMap((value): Place[] => {
         let temp = value.split(':');
         const placeName = temp[0];
         const info = temp.filter((_, index) => index !== 0).join(':');
@@ -99,46 +104,38 @@ async function getDataFromOfficialSite(): Promise<TyphoonData> {
           };
         });
 
-        const processedName = schoolNameProcess(placeName);
-
-        const school = isSchool(processedName)
-          ? schoolData
-              .filter(
-                (school) =>
-                  school.county === countyName?.replaceAll('臺', '台'),
-              )
-              .map((school) => {
-                const regex = new RegExp(`([${school.name}])`);
-                const score = (regex.exec(processedName)?.length ?? 0) - 1;
-                return [score, school] as [number, School];
-              })
-              .filter((school) => school[0] > 0)
-              .sort((b, a) => b[0] - a[0])[0]?.[1]
-          : undefined;
-
-        const isPosition = school !== undefined;
-        if (isPosition) {
-          delete school.name;
-        }
         const dayoff = status.reduce((acc, cur) => {
           return Object.assign(acc, cur);
         }, {});
-        return Object.assign(
-          {
-            placeName: placeName,
-            isDayOff: {
-              ...countyData,
-              ...dayoff,
-            },
-          },
-          {
-            isPosition: isPosition,
-            position: school,
-          },
-          {
-            countyName: countyName || '',
-          },
-        );
+        const placeBase = {
+          isDayOff: {
+            ...countyData,
+            ...dayoff,
+          } as DayOff,
+          countyName: countyName || '',
+        };
+
+        const processedName = schoolNameProcess(placeName);
+        const schoolNames = processedName
+          .split('、')
+          .map((name) => name.trim())
+          .filter((name) => isSchool(name));
+        const schools = schoolNames
+          .map((name) => findSchoolByName(name, countyName || '', schoolData))
+          .filter(
+            (school, index, list) =>
+              school !== undefined && list.indexOf(school) === index,
+          );
+
+        if (schools.length === 0) {
+          return [{ ...placeBase, placeName, isPosition: false }];
+        }
+        return schools.map((school) => ({
+          ...placeBase,
+          placeName: school!.name || placeName,
+          isPosition: true,
+          position: { lat: school!.lat, lng: school!.lng },
+        }));
       });
     const result: County = {
       countyName: countyName || '',

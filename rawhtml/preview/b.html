@@ -27,21 +27,27 @@
   <div id="map" style="height: 100dvh; overflow:hidden;background-color: rgb(63, 63, 63);"></div>
   <p id="lastupdate" style="position: absolute; font-size: large; top:0;right: 2rem;color:white;z-index:9999;"></p>
   <div
-    style="display:flex;flex-direction:column;position: absolute;bottom: 0;margin: 0.5rem;outline:solid rgb(20, 20, 20) 1px;background-color: rgba(53, 53, 53,0.25);border-radius: 15px;;padding: 0.75rem;color: white;z-index:9999;"
+    style="display:flex;flex-direction:column;gap: 0.75rem;position: absolute;bottom: 0;margin: 0.5rem;outline:solid rgb(20, 20, 20) 1px;background-color: rgba(53, 53, 53,0.25);border-radius: 15px;;padding: 0.75rem;color: white;z-index:9999;"
     id="info-panel">
-    <div
-      style="display: flex; flex-direction: row;align-items: center;justify-content: center;border-radius: 20px;background-color: rgba(128, 128, 128, 0.301);">
-      <input type="checkbox" name="Toggle" id="toggle" hidden>
-      <label for="toggle" style="cursor: pointer;user-select: none;">切換顯示</label>
+    <div style="display: flex; flex-direction: row;align-items: center;justify-content: flex-end;">
+      <button id="panel-toggle" type="button"
+        style="cursor:pointer;border:none;border-radius:20px;padding:0.25rem 0.75rem;background-color:rgba(128,128,128,0.301);color:white;font-size:0.75rem;">隱藏</button>
     </div>
-    <p id="show-info">目前顯示 : 上班</p>
-    <!--
-    <div style="display: flex;position: relative;align-items: center;">
-      <div style="padding: 0.5rem;background-color: purple;"></div>
-      <p>你的位置</p>
+    <div id="panel-body" style="display: flex;flex-direction: column;">
+      <div
+        style="display: flex; flex-direction: row;align-items: center;justify-content: center;border-radius: 20px;background-color: rgba(128, 128, 128, 0.301);">
+        <input type="checkbox" name="Toggle" id="toggle" hidden>
+        <label for="toggle" style="cursor: pointer;user-select: none;">切換顯示</label>
+      </div>
+      <p id="show-info">目前顯示 : 上班</p>
+      <!--
+      <div style="display: flex;position: relative;align-items: center;">
+        <div style="padding: 0.5rem;background-color: purple;"></div>
+        <p>你的位置</p>
+      </div>
+      -->
+      <div style="display: flex;flex-direction: column;" id="dayoffinfo"></div>
     </div>
-    -->
-    <div style="display: flex;flex-direction: column;" id="dayoffinfo"></div>
 
   </div>
   <script>
@@ -59,6 +65,13 @@
     let toggle = document.getElementById('toggle')
     let dayoffinfo = document.getElementById('dayoffinfo')
     let panel = document.getElementById('info-panel')
+    let panelBody = document.getElementById('panel-body')
+    let panelToggle = document.getElementById('panel-toggle')
+    panelToggle.onclick = () => {
+      const isHidden = panelBody.style.display === 'none'
+      panelBody.style.display = isHidden ? 'flex' : 'none'
+      panelToggle.textContent = isHidden ? '隱藏' : '顯示'
+    }
     let width = (window.innerWidth > 0) ? window.innerWidth : screen.width;
     const isMobile = width < 768
 
@@ -108,7 +121,6 @@
     let ColorMap = new Map([
       ['tomorrow', 'yellow'],
       ['today', 'blue'],
-      ['some', 'green'],
       ['both', 'red'],
       ['false', 'gray'],
       ['some', 'orange']
@@ -340,8 +352,8 @@
               fill: true
             })
           }
-          const TownDayOffData = TyphoonTowns.some((town) => town.countyName === layer.feature.properties.COUNTYNAME)
-          if (TownDayOffData) {
+          const isPartialDayOff = [...TyphoonTowns, ...TyphoonPlaces].some((place) => place.type !== 'false' && place.countyName === layer.feature.properties.COUNTYNAME)
+          if (isPartialDayOff) {
             return layer.setStyle({
               color: 'gray',
               fillColor: ColorMap.get('some'),
@@ -382,7 +394,7 @@
           }
           if (isTyphoon === true) {
             const [school, work] = ['school', 'work'].map((type) => {
-              const TyphoonCounties = data.filter((county) => Object.values(county.isDayOff).some(v => v)).map((county) => {
+              const TyphoonCounties = data.filter((county) => Object.values(county.isDayOff).some((dayOff) => dayOff.today || dayOff.tomorrow)).map((county) => {
                 const dayOffStatus = county.isDayOff[type]
                 return {
                   county: county.countyName,

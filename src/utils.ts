@@ -1,4 +1,5 @@
 import { createWriteStream, existsSync, mkdirSync } from 'fs';
+import type { School } from './types';
 
 const logFile = `./logs/log_${Date.now()}.txt`;
 if (!existsSync('./logs')) {
@@ -56,4 +57,26 @@ export const isSchool = (name: string) => {
     '高級商業職業學校',
   ];
   return schoolTypes.some((type) => name.includes(type));
+};
+
+export const schoolCoreName = (name: string) =>
+  schoolNameProcess(name).replace(/^(市立|縣立|國立|私立)/, '');
+
+/**
+ * 從公告的地點字串找出對應學校。
+ * 可處理「巴崚國民小學、三光國民小學」這種多校合併字串（傳入單一校名時）。
+ */
+export const findSchoolByName = (
+  placeName: string,
+  county: string,
+  schoolData: School[],
+): School | undefined => {
+  const target = schoolCoreName(placeName);
+  if (!target) return undefined;
+  const normalizedCounty = county.replaceAll('臺', '台');
+  return schoolData
+    .filter((school) => school.name && school.county === normalizedCounty)
+    .map((school) => ({ school, coreName: schoolCoreName(school.name!) }))
+    .filter(({ coreName }) => coreName !== '' && target.includes(coreName))
+    .sort((a, b) => b.coreName.length - a.coreName.length)[0]?.school;
 };
