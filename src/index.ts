@@ -15,7 +15,11 @@ import {
   isSchool,
   findSchoolByName,
 } from './utils';
-import { getTyphoonWarningData, getCacheInfo } from './typhoonDetailData';
+import {
+  getTyphoonWarningData,
+  getTyphoonList,
+  getCacheInfo,
+} from './typhoonDetailData';
 
 async function getDataFromOfficialSite(): Promise<TyphoonData> {
   const file = await readFile('./schools/schools.json', 'utf-8');
@@ -260,10 +264,10 @@ const server = Bun.serve({
           },
         });
       }
-      return new Response(await Bun.file(fileInMap).text(), {
+      return new Response(processFile(await Bun.file(fileInMap).text()), {
         headers: {
           'content-type': 'text/html',
-          'Cache-Control': 'public, max-age=31536000, immutable',
+          'Cache-Control': 'no-store, max-age:0',
         },
       });
     }
@@ -306,13 +310,12 @@ const server = Bun.serve({
 
     if (url.pathname === '/api/typhoon/warning') {
       try {
-        const warningData = await getTyphoonWarningData({
-          fixTime: [new Date('2025-11-04T00:00:00').toISOString()],
-        });
+        const warningData = await getTyphoonWarningData();
+        const typhoons = getTyphoonList(warningData);
 
         const cacheInfo = getCacheInfo();
 
-        return new Response(JSON.stringify(warningData), {
+        return new Response(JSON.stringify({ success: true, typhoons }), {
           headers: {
             'content-type': 'application/json',
             'Cache-Control': 'no-store, max-age:0',

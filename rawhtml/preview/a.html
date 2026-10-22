@@ -30,20 +30,20 @@
     style="display:flex;flex-direction:column;gap: 0.5rem;position: absolute;bottom: 0;margin: 0.5rem;color: white;z-index:9999;"
     id="info-panel">
     <div style="display: flex; flex-direction: row;align-items: center;justify-content: flex-start;">
-      <button id="panel-toggle" type="button" title="資訊" aria-label="資訊"
+      <button id="panel-toggle" type="button" title="{{information}}" aria-label="{{information}}"
         style="cursor:pointer;border:solid rgb(20,20,20) 1px;border-radius:50%;width:2rem;height:2rem;padding:0;line-height:1;background-color:rgba(53,53,53,0.85);color:white;font-size:1rem;font-style:italic;font-weight:bold;">i</button>
     </div>
     <div id="panel-body" style="display: none;flex-direction:column;gap: 0.75rem;outline:solid rgb(20, 20, 20) 1px;background-color: rgba(53, 53, 53,0.25);border-radius: 15px;padding: 0.75rem;">
       <div
         style="display: flex; flex-direction: row;align-items: center;justify-content: center;border-radius: 20px;background-color: rgba(128, 128, 128, 0.301);">
         <input type="checkbox" name="Toggle" id="toggle" hidden>
-        <label for="toggle" style="cursor: pointer;user-select: none;">切換顯示</label>
+        <label for="toggle" style="cursor: pointer;user-select: none;">{{changeDisplay}}</label>
       </div>
-      <p id="show-info">目前顯示 : 上班</p>
+      <p id="show-info">{{currentDisplayed}} : {{work}}</p>
       <!--
       <div style="display: flex;position: relative;align-items: center;">
         <div style="padding: 0.5rem;background-color: purple;"></div>
-        <p>你的位置</p>
+        <p>{{yourPosition}}</p>
       </div>
       -->
       <div style="display: flex;flex-direction: column;" id="dayoffinfo"></div>
@@ -81,34 +81,34 @@
     const TownColorInfoHTML = `
     <div style="display: flex;position: relative;align-items: center;">
       <div style="padding: 0.5rem;background-color: yellow;"></div>
-      <p>明日停班/停課</p>
+      <p>{{tomorrowSuspension}}</p>
       </div>
       <div style="display: flex;position: relative;align-items: center;">
         <div style="padding: 0.5rem;background-color: blue;"></div>
-        <p>今日停班/停課</p>
+        <p>{{todaySuspension}}</p>
         </div>
         <div style="display: flex;position: relative;align-items: center;">
           <div style="padding: 0.5rem;background-color: red;"></div>
-          <p>兩日皆停班/停課</p>
+          <p>{{bothSuspension}}</p>
           </div>
           <div style="display: flex;position: relative;align-items: center;">
             <div style="padding: 0.5rem;background-color: gray;"></div>
-            <p>正常上班/上課</p>
+            <p>{{normalWorkSchool}}</p>
             </div>
             `
 
     const CountyColorInfoHTML = `
             <div style="display: flex;position: relative;align-items: center;">
               <div style="padding: 0.5rem;background-color: blue;"></div>
-              <p>停班停課</p>
+              <p>{{suspension}}</p>
               </div>
               <div style="display: flex;position: relative;align-items: center;">
                 <div style="padding: 0.5rem;background-color: orange;"></div>
-                <p>部分停班/停課</p>
+                <p>{{partialSuspension}}</p>
                 </div>
                 <div style="display: flex;position: relative;align-items: center;">
                   <div style="padding: 0.5rem;background-color: gray;"></div>
-                  <p>正常上班/上課</p>
+                  <p>{{normalWorkSchool}}</p>
                   </div>
                   `
     const posChangeMap = new Map([
@@ -212,11 +212,16 @@
         panel.style.display = 'flex'
         map.removeLayer(twTownDisplay)
         map.removeLayer(PointLayer)
+        map.removeLayer(UserLayer)
         map.addLayer(GeoJsonCounty)
         map.addLayer(outIslandBorder)
+        zoomedCounty = null
+        update()
         dayoffinfo.innerHTML = CountyColorInfoHTML
       }
       let zoomIn = (bounds, countyName) => {
+        zoomedCounty = countyName
+        update()
         twTownDisplay.clearLayers()
         GeoJsonTown.eachLayer((layer) => {
           if (layer.feature.properties.COUNTYNAME === countyName) {
@@ -226,6 +231,7 @@
 
         twTownDisplay.addTo(map)
         map.addLayer(PointLayer)
+        map.addLayer(UserLayer)
         map.removeLayer(outIslandBorder)
         map.removeLayer(GeoJsonCounty)
         if (['高雄市', '宜蘭縣'].includes(countyName)) {
@@ -239,6 +245,8 @@
       }
 
       let PointLayer = L.layerGroup()
+      let UserLayer = L.layerGroup()
+      let zoomedCounty = null
 
       let type = 'work'
 
@@ -254,7 +262,7 @@
               iconAnchor: [10, 10],
               popupAnchor: [-5, -10]
             })
-          }).addTo(PointLayer).bindPopup('你的位置').openPopup()
+          }).addTo(UserLayer).bindPopup('{{yourPosition}}').openPopup()
         } else {
           navigator.geolocation.getCurrentPosition((position) => {
             UserLocation = [position.coords.latitude, position.coords.longitude];
@@ -266,7 +274,7 @@
                 iconAnchor: [10, 10],
                 popupAnchor: [-5, -10]
               })
-            }).addTo(PointLayer).bindPopup('你的位置').openPopup()
+            }).addTo(UserLayer).bindPopup('{{yourPosition}}').openPopup()
           })
         }
       }
@@ -294,7 +302,7 @@
         console.log(TyphoonPlaces)
         console.log('----update----')
 
-        TyphoonPlaces.forEach((place) => {
+        TyphoonPlaces.filter((place) => zoomedCounty === null || place.countyName === zoomedCounty).forEach((place) => {
           const marker = L.marker(place.position, {
             icon: L.divIcon({
               html: `<div style="width:100%;height:100%;background-color:${ColorMap.get(place.type)};border-radius:5px"></div>`,
@@ -364,11 +372,12 @@
       }
       const sleep = (time) => new Promise((resolve) => setTimeout(resolve, 1000 * time));
       const updateDataFromBackend = (() => {
-        let lastUpdateTime = Infinity
-        lastupdate.innerHTML = '資料更新中...'
+        let lastUpdateTime = -Infinity
+        lastupdate.innerHTML = '{{updating}}'
         return async () => {
-          if (lastUpdateTime - new Date().getTime() < 1000 * 30)
-            return lastUpdateTime = new Date().getTime()
+          if (new Date().getTime() - lastUpdateTime < 1000 * 30)
+            return
+          lastUpdateTime = new Date().getTime()
           const req = (await (await fetch(`${window.location.origin}/api/typhoon`)).json())
           const data = req.data
           const isTyphoon = req.typhoon
@@ -415,7 +424,7 @@
             workDayoffData = work
           }
           update()
-          lastupdate.innerHTML = `最後更新時間: ${new Date(time).toLocaleDateString()} ${new Date(time).toLocaleTimeString()}`
+          lastupdate.innerHTML = `{{lastUpdate}}: ${new Date(time).toLocaleDateString()} ${new Date(time).toLocaleTimeString()}`
           console.log('update')
           return;
         }
@@ -424,12 +433,12 @@
       toggle.addEventListener('change', () => {
         if (toggle.checked) {
           type = 'school'
-          showInfo.innerHTML = '目前顯示 : 上課'
+          showInfo.innerHTML = '{{currentDisplayed}} : {{school}}'
         } else {
           type = 'work'
-          showInfo.innerHTML = '目前顯示 : 上班'
+          showInfo.innerHTML = '{{currentDisplayed}} : {{work}}'
         }
-        updateDataFromBackend()
+        update()
       })
 
       //GeoJsonTown.addTo(map);

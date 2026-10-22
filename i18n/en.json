@@ -6,9 +6,20 @@
   "tomorrowDayOff": "Day Off Tomorrow",
   "todayDayOff": "Day Off Today",
   "bothDayOff": "Both Days Off",
+  "bothDaysOff": "Both Days Off",
   "noDayOff": "No Day Off",
+  "noDayOffNow": "No Day Off Currently",
   "lastUpdate": "Last Updated",
+  "updating": "Updating...",
   "changeDisplay": "Change Display",
   "information": "Information",
-  "demo": "Demo Typhoon Day"
+  "siteTitle": "Taiwan Typhoon Day Off Status",
+  "suspension": "Work and School Suspended",
+  "partialSuspension": "Partial Suspension",
+  "tomorrowSuspension": "Suspended Tomorrow",
+  "todaySuspension": "Suspended Today",
+  "bothSuspension": "Suspended Both Days",
+  "normalWorkSchool": "Normal Work and School",
+  "demo": "Demo Typhoon Day",
+  "demoStop": "Stop Demo"
 }

@@ -124,6 +124,23 @@ async function getTyphoonWarningData(
   return data;
 }
 
+function getTyphoonList(data: TyphoonWarningResponse): unknown[] {
+  const records = (
+    data as unknown as {
+      records?: {
+        TropicalCyclones?: { TropicalCyclone?: unknown[] };
+        tropicalCyclones?: { tropicalCyclone?: unknown[] };
+      };
+    }
+  )?.records;
+
+  return (
+    records?.TropicalCyclones?.TropicalCyclone ??
+    records?.tropicalCyclones?.tropicalCyclone ??
+    []
+  );
+}
+
 /**
  * 清除颱風警報資料快取
  */
@@ -154,6 +171,7 @@ function getCacheInfo(): {
 
 export {
   getTyphoonWarningData,
+  getTyphoonList,
   clearTyphoonWarningCache,
   getCacheInfo,
   CACHE_DURATION,
