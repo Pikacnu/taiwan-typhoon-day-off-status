@@ -38,34 +38,41 @@
   </div>
 
   <div
-    style="display:flex;flex-direction:column;position: absolute;bottom: 0;margin: 0.5rem;outline:solid rgb(20, 20, 20);;background-color: rgba(53, 53, 53,0.8);border-radius: 15px;;padding: 0.75rem;color: white;z-index:9999;">
-
-    <div
-      style="display: flex; flex-direction: row;align-items: center;justify-content: center;border-radius: 20px;background-color: gray;">
-      <input type="checkbox" name="Toggle" id="toggle" hidden>
-      <label for="toggle" style="cursor: pointer;user-select: none;">{{changeDisplay}}</label>
+    style="display:flex;flex-direction:column;gap: 0.5rem;position: absolute;bottom: 0;margin: 0.5rem;color: white;z-index:9999;"
+    id="info-panel">
+    <div style="display: flex; flex-direction: row;align-items: center;justify-content: flex-start;">
+      <button id="panel-toggle" type="button" title="{{information}}" aria-label="{{information}}"
+        style="cursor:pointer;border:solid rgb(20,20,20) 1px;border-radius:50%;width:2rem;height:2rem;padding:0;line-height:1;background-color:rgba(53,53,53,0.85);color:white;font-size:1rem;font-style:italic;font-weight:bold;">i</button>
     </div>
-    <p id="show-info">{{currentDisplayed}} : {{work}}</p>
-    <div style="display: flex;position: relative;align-items: center;">
-      <div style="padding: 0.5rem;background-color: purple;"></div>
-      <p>{{yourPosition}}</p>
-    </div>
-    <div style="display: flex;"></div>
-    <div style="display: flex;position: relative;align-items: center;">
-      <div style="padding: 0.5rem;background-color: yellow;"></div>
-      <p>{{tomorrowDayOff}}</p>
-    </div>
-    <div style="display: flex;position: relative;align-items: center;">
-      <div style="padding: 0.5rem;background-color: blue;"></div>
-      <p>{{todayDayOff}}</p>
-    </div>
-    <div style="display: flex;position: relative;align-items: center;">
-      <div style="padding: 0.5rem;background-color: red;"></div>
-      <p>{{bothDayOff}}</p>
-    </div>
-    <div style="display: flex;position: relative;align-items: center;">
-      <div style="padding: 0.5rem;background-color: gray;"></div>
-      <p>{{noDayOff}}</p>
+    <div id="panel-body"
+      style="display: none;flex-direction:column;gap: 0.75rem;outline:solid rgb(20, 20, 20);background-color: rgba(53, 53, 53,0.8);border-radius: 15px;padding: 0.75rem;">
+      <div
+        style="display: flex; flex-direction: row;align-items: center;justify-content: center;border-radius: 20px;background-color: gray;">
+        <input type="checkbox" name="Toggle" id="toggle" hidden>
+        <label for="toggle" style="cursor: pointer;user-select: none;">{{changeDisplay}}</label>
+      </div>
+      <p id="show-info">{{currentDisplayed}} : {{work}}</p>
+      <div style="display: flex;position: relative;align-items: center;">
+        <div style="padding: 0.5rem;background-color: purple;"></div>
+        <p>{{yourPosition}}</p>
+      </div>
+      <div style="display: flex;"></div>
+      <div style="display: flex;position: relative;align-items: center;">
+        <div style="padding: 0.5rem;background-color: yellow;"></div>
+        <p>{{tomorrowDayOff}}</p>
+      </div>
+      <div style="display: flex;position: relative;align-items: center;">
+        <div style="padding: 0.5rem;background-color: blue;"></div>
+        <p>{{todayDayOff}}</p>
+      </div>
+      <div style="display: flex;position: relative;align-items: center;">
+        <div style="padding: 0.5rem;background-color: red;"></div>
+        <p>{{bothDayOff}}</p>
+      </div>
+      <div style="display: flex;position: relative;align-items: center;">
+        <div style="padding: 0.5rem;background-color: gray;"></div>
+        <p>{{noDayOff}}</p>
+      </div>
     </div>
   </div>
 
@@ -78,6 +85,13 @@
     let lastupdate = document.getElementById('lastupdate');
     let showInfo = document.getElementById('show-info');
     let toggle = document.getElementById('toggle');
+    let panelBody = document.getElementById('panel-body');
+    let panelToggle = document.getElementById('panel-toggle');
+    const setPanelOpen = (open) => {
+      panelBody.style.display = open ? 'flex' : 'none';
+      panelToggle.textContent = open ? '×' : 'i';
+    };
+    panelToggle.onclick = () => setPanelOpen(panelBody.style.display === 'none');
 
     let ColorMap = new Map([
       ['tomorrow', 'yellow'],

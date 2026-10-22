@@ -27,13 +27,13 @@
   <div id="map" style="height: 100dvh; overflow:hidden;background-color: rgb(63, 63, 63);"></div>
   <p id="lastupdate" style="position: absolute; font-size: large; top:0;right: 2rem;color:white;z-index:9999;"></p>
   <div
-    style="display:flex;flex-direction:column;gap: 0.75rem;position: absolute;bottom: 0;margin: 0.5rem;outline:solid rgb(20, 20, 20) 1px;background-color: rgba(53, 53, 53,0.25);border-radius: 15px;;padding: 0.75rem;color: white;z-index:9999;"
+    style="display:flex;flex-direction:column;gap: 0.5rem;position: absolute;bottom: 0;margin: 0.5rem;color: white;z-index:9999;"
     id="info-panel">
-    <div style="display: flex; flex-direction: row;align-items: center;justify-content: flex-end;">
-      <button id="panel-toggle" type="button"
-        style="cursor:pointer;border:none;border-radius:20px;padding:0.25rem 0.75rem;background-color:rgba(128,128,128,0.301);color:white;font-size:0.75rem;">隱藏</button>
+    <div style="display: flex; flex-direction: row;align-items: center;justify-content: flex-start;">
+      <button id="panel-toggle" type="button" title="資訊" aria-label="資訊"
+        style="cursor:pointer;border:solid rgb(20,20,20) 1px;border-radius:50%;width:2rem;height:2rem;padding:0;line-height:1;background-color:rgba(53,53,53,0.85);color:white;font-size:1rem;font-style:italic;font-weight:bold;">i</button>
     </div>
-    <div id="panel-body" style="display: flex;flex-direction: column;">
+    <div id="panel-body" style="display: none;flex-direction:column;gap: 0.75rem;outline:solid rgb(20, 20, 20) 1px;background-color: rgba(53, 53, 53,0.25);border-radius: 15px;padding: 0.75rem;">
       <div
         style="display: flex; flex-direction: row;align-items: center;justify-content: center;border-radius: 20px;background-color: rgba(128, 128, 128, 0.301);">
         <input type="checkbox" name="Toggle" id="toggle" hidden>
@@ -67,11 +67,11 @@
     let panel = document.getElementById('info-panel')
     let panelBody = document.getElementById('panel-body')
     let panelToggle = document.getElementById('panel-toggle')
-    panelToggle.onclick = () => {
-      const isHidden = panelBody.style.display === 'none'
-      panelBody.style.display = isHidden ? 'flex' : 'none'
-      panelToggle.textContent = isHidden ? '隱藏' : '顯示'
+    const setPanelOpen = (open) => {
+      panelBody.style.display = open ? 'flex' : 'none'
+      panelToggle.textContent = open ? '×' : 'i'
     }
+    panelToggle.onclick = () => setPanelOpen(panelBody.style.display === 'none')
     let width = (window.innerWidth > 0) ? window.innerWidth : screen.width;
     const isMobile = width < 768
 
