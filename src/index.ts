@@ -1,4 +1,4 @@
-import { JSDOM } from 'jsdom';
+import { JSDOM, VirtualConsole } from 'jsdom';
 import { readFile } from 'fs/promises';
 import { Glob } from 'bun';
 import type {
@@ -16,6 +16,8 @@ import {
   getCacheInfo,
 } from './typhoonDetailData';
 
+const UPDATE_INTERVAL = 1000 * 60 * 2; // 2 minutes
+
 async function getDataFromOfficialSite(): Promise<TyphoonData> {
   const file = await readFile('./schools/schools.json', 'utf-8');
   const schoolData: School[] = await JSON.parse(file);
@@ -30,7 +32,15 @@ async function getDataFromOfficialSite(): Promise<TyphoonData> {
       'https://www.dgpa.gov.tw/typh/daily/nds.html',
     )
   ).text();
-  let VirtualDOM = new JSDOM(request).window.document;
+
+  const virtualConsole = new VirtualConsole();
+  virtualConsole.on('jsdomError', (error) => {
+    if ((error as { type?: string }).type === 'css parsing') return;
+    console.error(error);
+  });
+  virtualConsole.sendTo(console, { omitJSDOMErrors: true });
+
+  let VirtualDOM = new JSDOM(request, { virtualConsole }).window.document;
   let rows = VirtualDOM.querySelectorAll('tbody.Table_Body')[0].children;
   let row: any[] = [];
 
@@ -163,7 +173,7 @@ let cacheFunction = await (async (): Promise<
   }
   let time = Date.now();
   return async (): Promise<TyphoonDataCache> => {
-    if (Date.now() - time > 1000 * 60 * 2) {
+    if (Date.now() - time > UPDATE_INTERVAL) {
       cache = await getDataFromOfficialSite();
       time = Date.now();
     }
