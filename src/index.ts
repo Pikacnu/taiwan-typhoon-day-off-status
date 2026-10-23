@@ -9,12 +9,7 @@ import type {
   School,
   TyphoonDataCache,
 } from './types';
-import {
-  logger,
-  schoolNameProcess,
-  isSchool,
-  findSchoolByName,
-} from './utils';
+import { logger, schoolNameProcess, isSchool, findSchoolByName } from './utils';
 import {
   getTyphoonWarningData,
   getTyphoonList,
@@ -58,7 +53,8 @@ async function getDataFromOfficialSite(): Promise<TyphoonData> {
     const countyData: DayOff = info
       .filter((value) => value.trim() !== '')
       .filter(
-        (value) => !value.includes('未達') || !value.includes('尚未列入警戒區'),
+        (value) =>
+          !(value.includes('未達') || value.includes('尚未列入警戒區')),
       )
       .filter((value) => value.match(/^[今明]/gm))
       .map((currentLineInfo) => {
