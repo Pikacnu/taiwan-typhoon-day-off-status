@@ -348,8 +348,17 @@
         }
       };
 
+      // 圓圈透明度隨時間遞減：距離現在越久（過去或未來）的圓圈越透明
+      const CIRCLE_FADE_HOURS = 72; // 透明度衰減到下限所需的時間（小時）
+      const CIRCLE_MIN_OPACITY_FACTOR = 0.1; // 最遠時間點的透明度下限比例
+      const getTimeOpacityFactor = (hoursFromNow) => {
+        if (!Number.isFinite(hoursFromNow)) return 1;
+        const ratio = Math.min(Math.abs(hoursFromNow) / CIRCLE_FADE_HOURS, 1);
+        return 1 - ratio * (1 - CIRCLE_MIN_OPACITY_FACTOR);
+      };
+
       // 繪製風圈
-      const drawWindCircle = (center, windCircle, color, opacity) => {
+      const drawWindCircle = (center, windCircle, color, opacity, timeFactor = 1) => {
         console.log('繪製風圈:', windCircle);
         if (!windCircle || !windCircle.Radius) return [];
 
@@ -364,9 +373,9 @@
             radius: radius,
             color: color,
             fillColor: color,
-            fillOpacity: opacity * 0.3,
+            fillOpacity: opacity * 0.3 * timeFactor,
             weight: 2,
-            opacity: opacity
+            opacity: opacity * timeFactor
           });
           layers.push(circle);
         }
@@ -496,15 +505,19 @@
 
                 // 只在最新位置繪製風圈
 
+                // 透明度隨時間遞減（分析時間越久越透明）
+                const hoursFromNow = (point.time.getTime() - Date.now()) / (60 * 60 * 1000);
+                const timeFactor = getTimeOpacityFactor(hoursFromNow);
+
                 // 7級風圈 (15 m/s)
                 if (point.circle15) {
-                  const circles15 = drawWindCircle(point.coord, point.circle15, '#FFFF00', 0.02);
+                  const circles15 = drawWindCircle(point.coord, point.circle15, '#FFFF00', 0.02, timeFactor);
                   circles15.forEach(c => typhoonLayers.addLayer(c));
                 }
 
                 // 10級風圈 (25 m/s)
                 if (point.circle25) {
-                  const circles25 = drawWindCircle(point.coord, point.circle25, '#FF6600', 0.1);
+                  const circles25 = drawWindCircle(point.coord, point.circle25, '#FF6600', 0.1, timeFactor);
                   circles25.forEach(c => typhoonLayers.addLayer(c));
                 }
 
@@ -545,15 +558,16 @@
                 `);
                 typhoonLayers.addLayer(marker);
 
-                // 70%機率圓
+                // 70%機率圓（透明度隨預報時距遞減）
                 if (point.radius70 > 0) {
+                  const timeFactor = getTimeOpacityFactor(point.tau);
                   const uncertainty = L.circle(point.coord, {
                     radius: point.radius70,
                     color: '#0000FF',
                     fillColor: '#0000FF',
-                    fillOpacity: 0.1,
+                    fillOpacity: 0.1 * timeFactor,
                     weight: 1,
-                    opacity: 0.3,
+                    opacity: 0.3 * timeFactor,
                     dashArray: '5, 5'
                   });
                   typhoonLayers.addLayer(uncertainty);
