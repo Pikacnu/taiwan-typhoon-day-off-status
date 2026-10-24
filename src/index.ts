@@ -38,7 +38,10 @@ async function getDataFromOfficialSite(): Promise<TyphoonData> {
     if ((error as { type?: string }).type === 'css parsing') return;
     console.error(error);
   });
-  virtualConsole.sendTo(console, { omitJSDOMErrors: true });
+  // jsdom 26 起移除了 sendTo，改為手動轉發 console 事件
+  (['log', 'info', 'warn', 'error', 'debug'] as const).forEach((method) => {
+    virtualConsole.on(method, (...args: unknown[]) => console[method](...args));
+  });
 
   let VirtualDOM = new JSDOM(request, { virtualConsole }).window.document;
   let rows = VirtualDOM.querySelectorAll('tbody.Table_Body')[0].children;
