@@ -348,12 +348,12 @@
         }
       };
 
-      // 圓圈透明度隨順序遞減：越新的資料越不透明，最舊的保留下限
-      const CIRCLE_MIN_OPACITY_FACTOR = 0.15; // 最舊資料的透明度下限比例
-      const ANALYSIS_MAX_POINTS = 24; // 分析資料只保留最近 24 筆
-      const getIndexOpacityFactor = (index, total) => {
-        if (!(total > 1)) return 1;
-        const ratio = (total - 1 - index) / (total - 1);
+      // 圓圈透明度隨順序遞減：越新的資料越不透明，超過範圍的一律用下限
+      const CIRCLE_MIN_OPACITY_FACTOR = 0.05; // 透明度下限比例
+      const CIRCLE_FADE_POINTS = 24; // 最近 24 筆內線性遞減，更舊的用下限
+      // distance 為與最新資料的距離（0 = 最新）
+      const getOpacityFactor = (distance) => {
+        const ratio = Math.min(distance / (CIRCLE_FADE_POINTS - 1), 1);
         return 1 - ratio * (1 - CIRCLE_MIN_OPACITY_FACTOR);
       };
 
@@ -438,9 +438,9 @@
             const analysisPoints = [];
             const forecastPoints = [];
 
-            // 處理分析資料(實際路徑)，只保留最近 24 筆
+            // 處理分析資料(實際路徑)
             if (typhoonInfo.AnalysisData && typhoonInfo.AnalysisData.Fix) {
-              typhoonInfo.AnalysisData.Fix.slice(-ANALYSIS_MAX_POINTS).forEach((fix, idx) => {
+              typhoonInfo.AnalysisData.Fix.forEach((fix, idx) => {
                 analysisPoints.push({
                   coord: [
                     parseFloat(fix.CoordinateLatitude),
@@ -505,8 +505,8 @@
 
                 // 只在最新位置繪製風圈
 
-                // 透明度隨順序遞減（越舊越透明）
-                const opacityFactor = getIndexOpacityFactor(idx, analysisPoints.length);
+                // 透明度隨順序遞減，超過最近 24 筆的一律用下限
+                const opacityFactor = getOpacityFactor(analysisPoints.length - 1 - idx);
 
                 // 7級風圈 (15 m/s)
                 if (point.circle15) {
@@ -559,7 +559,7 @@
 
                 // 70%機率圓（透明度隨順序遞減）
                 if (point.radius70 > 0) {
-                  const opacityFactor = getIndexOpacityFactor(idx, forecastPoints.length);
+                  const opacityFactor = getOpacityFactor(idx);
                   const uncertainty = L.circle(point.coord, {
                     radius: point.radius70,
                     color: '#0000FF',
